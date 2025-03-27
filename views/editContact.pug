@@ -1,0 +1,57 @@
+doctype html
+html
+  head
+    title Edit Contact
+    style.
+      .error {
+        border-color: red;
+      }
+      .error-message {
+        color: red;
+        display: none;
+      }
+  body
+    h1 Edit Contact
+    form(action=`/contacts/edit/${contact.id}` method="post" onsubmit="return validateForm()")
+      label(for="name") Name:
+      input(type="text" name="name" value=contact.name)
+      label(for="surname") Surname:
+      input(type="text" name="surname" value=contact.surname)
+      label(for="phoneNumber") Phone Number:
+      input(type="text" name="phoneNumber" id="phoneNumber" value=contact.phoneNumber oninput="checkDuplicate(this.value)")
+      span#duplicateWarning.error-message Duplicate phone number exists!
+      label(for="email") Email:
+      input(type="email" name="email" value=contact.email)
+      label(for="birthday") Birthday:
+      input(type="date" name="birthday" value=contact.birthday ? contact.birthday.toISOString().split('T')[0] : '')
+      button(type="submit") Save
+
+    script.
+      function validateForm() {
+        const phoneNumberInput = document.getElementById('phoneNumber');
+        const duplicateWarning = document.getElementById('duplicateWarning');
+        if (duplicateWarning.style.display === 'block') {
+          phoneNumberInput.classList.add('error');
+          return false; // Prevent form submission
+        }
+        return true; // Allow form submission
+      }
+
+      function checkDuplicate(phoneNumber) {
+        fetch('/contacts/json') // Use the JSON endpoint
+          .then(response => response.json())
+          .then(contacts => {
+            console.log('Contacts fetched:', contacts); // Debugging
+            const isDuplicate = contacts.some(contact => contact.phoneNumber === phoneNumber && contact.id !== #{contact.id});
+            const phoneNumberInput = document.getElementById('phoneNumber');
+            const duplicateWarning = document.getElementById('duplicateWarning');
+            if (isDuplicate) {
+              phoneNumberInput.classList.add('error');
+              duplicateWarning.style.display = 'block';
+            } else {
+              phoneNumberInput.classList.remove('error');
+              duplicateWarning.style.display = 'none';
+            }
+          })
+          .catch(error => console.error('Error checking duplicates:', error));
+      }

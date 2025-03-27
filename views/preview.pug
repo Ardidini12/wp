@@ -1,0 +1,98 @@
+doctype html
+html
+  head
+    title Preview Contacts
+    style.
+      .error {
+        border-color: red;
+      }
+      .error-message {
+        color: red;
+        display: none;
+      }
+  body
+    h1 Preview Contacts
+    form(action="/contacts/confirm-import" method="post" onsubmit="return validatePreview()")
+      input(type="hidden" name="contacts" value=JSON.stringify(contacts))
+      table
+        thead
+          tr
+            th Name
+            th Surname
+            th Phone Number
+            th Email
+            th Birthday
+        tbody
+          each contact, index in contacts
+            tr
+              td
+                input(type="text" name=`contacts[${index}][name]` value=contact.name)
+              td
+                input(type="text" name=`contacts[${index}][surname]` value=contact.surname)
+              td
+                input(type="text" name=`contacts[${index}][phoneNumber]` id=`phoneNumber-${index}` value=contact.phoneNumber oninput=`checkDuplicate(${index}, this.value)`)
+                span.error-message(id=`duplicateWarning-${index}`) Duplicate phone number exists!
+                span.error-message(id=`missingWarning-${index}`) Please fill this field!
+              td
+                input(type="email" name=`contacts[${index}][email]` value=contact.email)
+              td
+                input(type="date" name=`contacts[${index}][birthday]` value=contact.birthday ? contact.birthday.toISOString().split('T')[0] : '')
+      button(type="submit") Confirm Import
+    form(action="/contacts/cancel-import" method="post")
+      input(type="hidden" name="filePath" value=filePath)
+      button(type="submit") Cancel Import
+
+    script.
+      function validatePreview() {
+        const phoneNumberInputs = document.querySelectorAll('input[name*="[phoneNumber]"]');
+        let valid = true;
+        phoneNumberInputs.forEach(input => {
+          const duplicateWarning = document.getElementById(`duplicateWarning-${input.id.split('-')[1]}`);
+          const missingWarning = document.getElementById(`missingWarning-${input.id.split('-')[1]}`);
+          if (!input.value) {
+            input.classList.add('error');
+            missingWarning.style.display = 'block';
+            valid = false;
+          } else {
+            missingWarning.style.display = 'none';
+          }
+          if (duplicateWarning.style.display === 'block') {
+            input.classList.add('error');
+            valid = false;
+          }
+        });
+        return valid; // Prevent form submission if there are errors
+      }
+
+      function checkDuplicate(index, phoneNumber) {
+        const phoneNumberInputs = document.querySelectorAll('input[name*="[phoneNumber]"]');
+        const duplicateWarning = document.getElementById(`duplicateWarning-${index}`);
+        const missingWarning = document.getElementById(`missingWarning-${index}`);
+        const phoneNumberInput = document.getElementById(`phoneNumber-${index}`);
+
+        // Check for missing phone number
+        if (!phoneNumber) {
+          phoneNumberInput.classList.add('error');
+          missingWarning.style.display = 'block';
+          duplicateWarning.style.display = 'none';
+          return;
+        } else {
+          missingWarning.style.display = 'none';
+        }
+
+        // Check for duplicates
+        let isDuplicate = false;
+        phoneNumberInputs.forEach((input, i) => {
+          if (i !== index && input.value === phoneNumber) {
+            isDuplicate = true;
+          }
+        });
+
+        if (isDuplicate) {
+          phoneNumberInput.classList.add('error');
+          duplicateWarning.style.display = 'block';
+        } else {
+          phoneNumberInput.classList.remove('error');
+          duplicateWarning.style.display = 'none';
+        }
+      }

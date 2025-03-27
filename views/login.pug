@@ -1,0 +1,17 @@
+doctype html
+html
+  head
+    title Login
+  body
+    h1 Login
+    form(action="/login" method="post")
+      div
+        label(for="username") Username:
+        input(type="text" name="username" required)
+      div
+        label(for="password") Password:
+        input(type="password" name="password" required)
+      div
+        button(type="submit") Login
+    a(href="/") Return to Home
+    a(href="/register") Register
