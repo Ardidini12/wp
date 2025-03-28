@@ -1,12 +1,130 @@
-doctype html
-html
-  head
-    title Dashboard
-  body
-    h1 Welcome to the BSS Sender Dashboard
-    p You are logged in!
-    form(action="/logout" method="post")
-      button(type="submit") Logout
-    h2 Contacts
-    p This is the contacts section.
-    a(href="/contacts") Go to Contacts
+extends layout
+
+block styles
+  link(rel='stylesheet', href='/stylesheets/dashboard.css')
+  link(rel='stylesheet', href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css')
+
+block content
+  .page-header
+    h1 Dashboard
+    .page-actions
+      a.btn.btn-outline-primary(href="/preview")
+        i.fas.fa-eye.mr-1
+        | Preview
+      a.btn.btn-outline-primary(href="/contacts")
+        i.fas.fa-address-book.mr-1
+        | Contacts
+      a.btn.btn-primary(href="/whatsapp-check")
+        i.fab.fa-whatsapp.mr-1
+        | WhatsApp Status
+
+  .dashboard-container
+    .dashboard-card
+      .card-header
+        h3
+          i.fas.fa-paper-plane.mr-1
+          | Message Sender
+      .card-content
+        p Send personalized WhatsApp messages to your contacts easily.
+        .action-buttons
+          a.btn.btn-primary(href="/bulkSender")
+            i.fas.fa-paper-plane.mr-1
+            | Go to Bulk Sender
+
+    .dashboard-card
+      .card-header
+        h3
+          i.fas.fa-address-book.mr-1
+          | Contact Management
+      .card-content
+        p Manage your contacts from multiple sources in one place.
+        .stat-container
+          p 
+            span.stat-label Total Contacts: 
+            span.stat-value #{contactCount || 0}
+        .action-buttons
+          a.btn.btn-primary(href="/contacts")
+            i.fas.fa-users.mr-1
+            | View Contacts
+          a.btn.btn-outline-primary(href="/contacts/upload")
+            i.fas.fa-upload.mr-1
+            | Upload Contacts
+
+    .dashboard-card
+      .card-header
+        h3
+          i.fas.fa-copy.mr-1
+          | Message Templates
+      .card-content
+        p Create and manage templates for sending messages.
+        .stat-container
+          p 
+            span.stat-label Templates Available: 
+            span.stat-value #{templateCount || 0}
+        .action-buttons
+          a.btn.btn-primary(href="/templates")
+            i.fas.fa-list.mr-1
+            | View Templates
+          a.btn.btn-outline-primary(href="/templates/new")
+            i.fas.fa-plus.mr-1
+            | Create Template
+
+    .dashboard-card
+      .card-header
+        h3
+          i.fab.fa-whatsapp.mr-1
+          | WhatsApp Connection
+      .card-content
+        p Monitor and manage your WhatsApp connection status.
+        .connection-status(class=whatsappStatus ? 'connected' : 'disconnected')
+          i(class=whatsappStatus ? 'fas fa-check-circle' : 'fas fa-times-circle')
+          span= whatsappStatus ? 'Connected' : 'Disconnected'
+          if whatsappStatus && phoneNumber
+            span.connection-phone  (+#{phoneNumber})
+        .action-buttons
+          a.btn.btn-primary(href="/whatsapp-check")
+            i.fas.fa-sync.mr-1
+            | Check Status
+
+  .recent-activity
+    h2
+      i.fas.fa-history.mr-1
+      | Recent Activity
+    if recentMessages && recentMessages.length
+      .activity-list
+        each message in recentMessages
+          .activity-item
+            .activity-icon(class=`status-${message.status}`)
+              i(class=message.status === 'sent' ? 'fas fa-check-circle' : (message.status === 'failed' ? 'fas fa-times-circle' : 'fas fa-clock'))
+            .activity-content
+              .activity-header
+                span.activity-type Message to 
+                span.activity-target= message.phoneNumber
+                span.activity-time= new Date(message.createdAt).toLocaleString()
+              .activity-details
+                p.activity-message= message.message.substring(0, 60) + (message.message.length > 60 ? '...' : '')
+                .activity-status
+                  span.status-label Status: 
+                  span(class=`status-${message.status}`)= message.status
+    else
+      .empty-state
+        i.fas.fa-inbox.mr-1
+        | No recent activity
+
+block scripts
+  script.
+    // Fetch count data for the dashboard
+    fetch('/contacts/json')
+      .then(response => response.json())
+      .then(data => {
+        document.getElementById('contactCount').textContent = data.length;
+      })
+      .catch(error => {
+        console.error('Error fetching contact count:', error);
+        document.getElementById('contactCount').textContent = '0';
+      });
+
+    // Similar fetch requests for templates and messages
+    // This would be replaced with actual API endpoints
+    document.getElementById('templateCount').textContent = '5';
+    document.getElementById('messageCount').textContent = '10';

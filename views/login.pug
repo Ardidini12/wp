@@ -1,17 +1,22 @@
-doctype html
-html
-  head
-    title Login
-  body
-    h1 Login
-    form(action="/login" method="post")
-      div
-        label(for="username") Username:
-        input(type="text" name="username" required)
-      div
-        label(for="password") Password:
-        input(type="password" name="password" required)
-      div
-        button(type="submit") Login
-    a(href="/") Return to Home
-    a(href="/register") Register
+extends auth-layout
+
+block content
+  .auth-card
+    h2 Log In
+    if error
+      .auth-error= error
+    
+    form.auth-form(action="/login" method="post")
+      .form-group
+        label(for="username") Username
+        input.form-control(type="text" id="username" name="username" required)
+      
+      .form-group
+        label(for="password") Password
+        input.form-control(type="password" id="password" name="password" required)
+      
+      button.btn.btn-primary(type="submit") Log In
+    
+    .auth-links
+      p Don't have an account? 
+        a(href="/register") Register here

@@ -14,6 +14,7 @@ html
     h1 Preview Contacts
     form(action="/contacts/confirm-import" method="post" onsubmit="return validatePreview()")
       input(type="hidden" name="contacts" value=JSON.stringify(contacts))
+      input(type="hidden" name="fileName" value=originalFilename || filePath.split('/').pop())
       table
         thead
           tr
@@ -30,13 +31,13 @@ html
               td
                 input(type="text" name=`contacts[${index}][surname]` value=contact.surname)
               td
-                input(type="text" name=`contacts[${index}][phoneNumber]` id=`phoneNumber-${index}` value=contact.phoneNumber oninput=`checkDuplicate(${index}, this.value)`)
+                input(type="text" id=`phoneNumber-${index}` name=`contacts[${index}][phoneNumber]` value=contact.phoneNumber oninput=`checkDuplicate(${index}, this.value)`)
                 span.error-message(id=`duplicateWarning-${index}`) Duplicate phone number exists!
                 span.error-message(id=`missingWarning-${index}`) Please fill this field!
               td
                 input(type="email" name=`contacts[${index}][email]` value=contact.email)
               td
-                input(type="date" name=`contacts[${index}][birthday]` value=contact.birthday ? contact.birthday.toISOString().split('T')[0] : '')
+                input(type="date" name=`contacts[${index}][birthday]` value=(contact.birthday ? new Date(contact.birthday).toISOString().split('T')[0] : ''))
       button(type="submit") Confirm Import
     form(action="/contacts/cancel-import" method="post")
       input(type="hidden" name="filePath" value=filePath)

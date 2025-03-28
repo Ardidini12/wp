@@ -1,7 +1,47 @@
 doctype html
 html
   head
-    title= title
+    title BSS Sender
+    meta(charset="utf-8")
+    meta(name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no")
     link(rel='stylesheet', href='/stylesheets/style.css')
+    link(rel='stylesheet', href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css')
+    block styles
   body
-    block content
+    .app-container
+      .app-sidebar
+        .logo-container
+          img.logo(src='/images/logo.svg', alt='BSS Sender Logo')
+          h1.brand-name BSS Sender
+        
+        nav.main-nav
+          a.nav-item(href='/dashboard' class=currentPage === 'dashboard' ? 'active' : '')
+            i.fas.fa-tachometer-alt.nav-icon
+            span.nav-text Dashboard
+          a.nav-item(href='/contacts' class=currentPage === 'contacts' ? 'active' : '')
+            i.fas.fa-address-book.nav-icon
+            span.nav-text Contacts
+          a.nav-item(href='/templates' class=currentPage === 'templates' ? 'active' : '')
+            i.fas.fa-copy.nav-icon
+            span.nav-text Templates
+          a.nav-item(href='/bulkSender' class=currentPage === 'bulk-sender' ? 'active' : '')
+            i.fas.fa-paper-plane.nav-icon
+            span.nav-text Bulk Sender
+          a.nav-item(href='/whatsapp-check' class=currentPage === 'whatsapp' ? 'active' : '')
+            i.fab.fa-whatsapp.nav-icon
+            span.nav-text WhatsApp Status
+        
+        .sidebar-footer
+          span.app-version v1.0.0
+          form.logout-form(action="/logout" method="post")
+            button.btn.btn-outline-danger.logout-btn(type="submit")
+              i.fas.fa-sign-out-alt.mr-1
+              | Logout
+
+      .app-main
+        .app-content
+          block content
+    
+    script(src='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js')
+    script(src='/javascripts/app.js')
+    block scripts

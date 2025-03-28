@@ -1,0 +1,126 @@
+extends layout
+
+block styles
+  link(rel='stylesheet', href='/stylesheets/whatsapp.css')
+  link(rel='stylesheet', href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css')
+
+block content
+  - const isConnected = typeof whatsappStatus !== 'undefined' ? whatsappStatus : (qrCode && qrCode.connected)
+
+  .page-header
+    h1 WhatsApp Connection Status
+    .page-actions
+      button.btn.btn-outline-primary#refreshBtn
+        i.fas.fa-sync-alt.mr-1
+        | Refresh Page
+      a.btn.btn-outline-warning.ml-1#forceRefreshBtn(href="/debug/refresh-qr-code" target="_blank")
+        i.fas.fa-redo-alt.mr-1
+        | Force New QR Code
+
+  .status-container(class=isConnected ? 'connected' : 'disconnected')
+    if isConnected
+      .status-section
+        i.fas.fa-check-circle.status-icon.status-connected
+        .status-text WhatsApp Connected
+        if qrCode && qrCode.phoneNumber
+          .connected-phone
+            i.fas.fa-phone.mr-1
+            span Connected to: +#{qrCode.phoneNumber}
+      
+      .confirmation-section
+        i.fas.fa-thumbs-up.confirmation-icon
+        p.text-success.text-center You can now send WhatsApp messages
+    else
+      .status-section
+        i.fas.fa-qrcode.status-icon.status-disconnected
+        .status-text Scan QR Code to Connect
+      
+      .qr-container
+        if qrCode && qrCode.qrCodeUrl
+          img.qr-code(src=qrCode.qrCodeUrl alt="WhatsApp QR Code")
+        else
+          .qr-placeholder Loading QR code...
+          p.text-muted If the QR code doesn't appear, try refreshing the page.
+      
+      .instructions-section
+        h3 How to Connect
+        ol.connect-steps
+          li
+            i.fas.fa-mobile-alt.step-icon
+            | Open WhatsApp on your phone
+          li
+            i.fas.fa-cog.step-icon
+            | Tap on the three dots in the top right and select "WhatsApp Web"
+          li
+            i.fas.fa-qrcode.step-icon
+            | Point your phone to this screen to scan the QR code
+
+block scripts
+  script.
+    const refreshBtn = document.getElementById('refreshBtn');
+    const forceRefreshBtn = document.getElementById('forceRefreshBtn');
+    const statusContainer = document.querySelector('.status-container');
+    const statusElement = document.querySelector('.status-section');
+    
+    refreshBtn.addEventListener('click', async function() {
+      // Add loading state
+      refreshBtn.disabled = true;
+      refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Refreshing...';
+      
+      try {
+        // Refresh the page to check for updated status
+        window.location.reload();
+      } catch (error) {
+        console.error('Error refreshing status:', error);
+        refreshBtn.disabled = false;
+        refreshBtn.innerHTML = '<i class="fas fa-sync-alt mr-1"></i> Refresh Page';
+      }
+    });
+    
+    forceRefreshBtn.addEventListener('click', async function(e) {
+      e.preventDefault();
+      
+      // Add loading state
+      forceRefreshBtn.disabled = true;
+      forceRefreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Generating...';
+      
+      try {
+        // Call the debug endpoint to force a new QR code
+        const response = await fetch('/debug/refresh-qr-code');
+        const data = await response.json();
+        
+        // Alert the user
+        alert(data.message || 'QR code refresh initiated. Please wait a few seconds and refresh this page.');
+        
+        // Wait 5 seconds and then reload the page
+        setTimeout(() => {
+          window.location.reload();
+        }, 5000);
+      } catch (error) {
+        console.error('Error forcing QR code refresh:', error);
+        alert('Error initiating QR code refresh. Please try again.');
+        forceRefreshBtn.disabled = false;
+        forceRefreshBtn.innerHTML = '<i class="fas fa-redo-alt mr-1"></i> Force New QR Code';
+      }
+    });
+    
+    // For demo purposes - in a real app, this would come from the server
+    function updateConnectionStatus(isConnected) {
+      statusContainer.className = isConnected ? 'status-container connected' : 'status-container disconnected';
+      
+      if (isConnected) {
+        statusElement.innerHTML = `<i class="fas fa-check-circle status-icon status-connected"></i> <span>WhatsApp Connected</span>`;
+        document.querySelector('.qr-container').style.display = 'none';
+        document.querySelector('.instructions-section').style.display = 'none';
+        
+        const confirmationSection = document.createElement('div');
+        confirmationSection.className = 'confirmation-section';
+        confirmationSection.innerHTML = `
+          <i class="fas fa-thumbs-up confirmation-icon"></i>
+          <p class="text-success text-center">You can now send WhatsApp messages</p>
+        `;
+        statusContainer.appendChild(confirmationSection);
+      }
+    }
+
+   

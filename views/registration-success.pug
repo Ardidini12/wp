@@ -1,8 +1,23 @@
-doctype html
-html
-  head
-    title Registration Successful
-  body
-    h1 Registration Successful
-    p Your account has been created successfully.
-    a(href="/login") Go to Login
+extends auth-layout
+
+block content
+  .auth-card
+    h2 Registration Successful
+    p.success-message Your account has been created successfully!
+    
+    .success-actions
+      a.btn.btn-primary(href="/login") Log In Now
+
+block styles
+  style.
+    .success-message {
+      color: var(--success);
+      text-align: center;
+      font-weight: 500;
+      margin-bottom: 30px;
+    }
+    
+    .success-actions {
+      display: flex;
+      justify-content: center;
+    }

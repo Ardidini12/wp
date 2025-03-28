@@ -1,12 +1,24 @@
-extends layout
+extends auth-layout
 
 block content
-  h1= title
-  p Welcome to #{title}
-  if !user
-    a(href="/login") Login
-    a(href="/register") Register
-  else
-    p You are logged in as #{user.username}
-    form(action="/logout" method="post")
-      button(type="submit") Logout
+  .auth-card
+    h2 Welcome to BSS Sender
+    p.welcome-text A powerful WhatsApp Bulk Sender System that helps you connect with your contacts easily.
+    
+    .welcome-actions
+      a.btn.btn-primary(href="/login") Log In
+      a.btn.btn-outline-primary.mt-3(href="/register") Register
+
+block styles
+  style.
+    .welcome-text {
+      margin-bottom: 30px;
+      color: var(--gray);
+      text-align: center;
+    }
+    
+    .welcome-actions {
+      display: flex;
+      flex-direction: column;
+      margin-top: 20px;
+    }

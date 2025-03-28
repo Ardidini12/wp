@@ -1,0 +1,244 @@
+extends layout
+
+block styles
+  link(rel='stylesheet', href='/stylesheets/templates.css')
+  link(rel='stylesheet', href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css')
+
+block content
+  .page-header
+    h1 Template Manager
+    .page-actions
+      button.btn.btn-primary#showAddForm
+        i.fas.fa-plus.mr-1
+        | Add Template
+
+  // Bulk Actions Bar
+  .bulk-actions-bar#bulkActionsBar
+    .selected-count
+      span#selectedCount 0
+      |  templates selected
+    .bulk-actions
+      button.btn.btn-danger#deleteSelectedBtn
+        i.fas.fa-trash.mr-1
+        | Delete Selected
+
+  // Add Template Form
+  .add-template-form#addTemplateForm(style=showAddForm ? 'display:block' : 'display:none')
+    h3 Add New Template
+    form(action="/templates/add" method="post")
+      .form-group
+        label(for="templateName") Template Name
+        input.form-control(type="text" name="templateName" id="templateName" placeholder="e.g., Welcome Message" required)
+      .form-group
+        label(for="templateContent") Template Content
+        textarea.form-control(name="templateContent" id="templateContent" placeholder="Enter your message content here..." required)
+      .form-footer
+        button.btn.btn-outline-secondary(type="button" onclick="document.getElementById('addTemplateForm').style.display='none'") Cancel
+        button.btn.btn-primary(type="submit") Save Template
+
+  // Templates List
+  .templates-container
+    .templates-header
+      h3 Your Templates
+      if templates.length
+        span.text-muted #{templates.length} template(s) available
+    
+    if templates.length
+      .templates-list
+        each template in templates
+          .template-item
+            input.template-checkbox(type="checkbox" name="templateIds" value=template.id onchange="updateSelectedCount()")
+            .template-header
+              h4.template-name= template.templateName
+              .template-actions
+                button.btn.btn-outline-primary.btn-sm(onclick=`openEditModal(${template.id}, '${template.templateName.replace(/'/g, "\\'")}', '${template.templateContent.replace(/'/g, "\\'")}')`)
+                  i.fas.fa-edit.mr-1
+                  | Edit
+                form.d-inline(method="post" action=`/templates/delete/${template.id}` style="display:inline")
+                  button.btn.btn-outline-danger.btn-sm(type="submit")
+                    i.fas.fa-trash.mr-1
+                    | Delete
+            .template-content= template.templateContent
+    else
+      .text-center.mt-4.mb-4
+        p.text-muted No templates available. Create your first template to get started.
+        button.btn.btn-primary.mt-2#emptyStateAddBtn
+          i.fas.fa-plus.mr-1
+          | Create Template
+
+  // Edit Modal
+  .modal#editModal
+    .modal-dialog
+      .modal-content
+        .modal-header
+          h4.modal-title Edit Template
+          button.close(type="button" onclick="closeEditModal()") &times;
+        .modal-body
+          form#editForm(action="/templates/edit" method="post")
+            input(type="hidden" name="id" id="editTemplateId")
+            .form-group
+              label(for="editTemplateName") Template Name
+              input.form-control(type="text" name="templateName" id="editTemplateName" required)
+            .form-group
+              label(for="editTemplateContent") Template Content
+              textarea.form-control(name="templateContent" id="editTemplateContent" required)
+            .modal-footer
+              button.btn.btn-outline-secondary(type="button" onclick="closeEditModal()") Cancel
+              button.btn.btn-primary(type="submit") Save Changes
+
+block scripts
+  script.
+    // Delete Selected Templates
+    document.getElementById('deleteSelectedBtn').addEventListener('click', function() {
+      const selected = Array.from(document.querySelectorAll('input[name="templateIds"]:checked'))
+        .map(checkbox => checkbox.value);
+      
+      if (selected.length === 0) {
+        alert('Please select at least one template to delete.');
+        return;
+      }
+      
+      if (confirm(`Are you sure you want to delete ${selected.length} selected templates?`)) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/templates/delete-multiple';
+        
+        selected.forEach(id => {
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = 'ids';
+          input.value = id;
+          form.appendChild(input);
+        });
+        
+        document.body.appendChild(form);
+        form.submit();
+      }
+    });
+
+    // Add Template Form Toggle
+    document.getElementById('showAddForm').addEventListener('click', function() {
+      document.getElementById('addTemplateForm').style.display = 'block';
+    });
+
+    if (document.getElementById('emptyStateAddBtn')) {
+      document.getElementById('emptyStateAddBtn').addEventListener('click', function() {
+        document.getElementById('addTemplateForm').style.display = 'block';
+      });
+    }
+
+    // Modal Functions
+    function openEditModal(id, name, content) {
+      document.getElementById('editTemplateId').value = id;
+      document.getElementById('editTemplateName').value = name;
+      document.getElementById('editTemplateContent').value = content;
+      document.getElementById('editModal').style.display = 'block';
+    }
+
+    function closeEditModal() {
+      document.getElementById('editModal').style.display = 'none';
+    }
+
+    // Count selected templates
+    function updateSelectedCount() {
+      const selectedCount = document.querySelectorAll('input[name="templateIds"]:checked').length;
+      document.getElementById('selectedCount').textContent = selectedCount;
+      
+      const bulkActionsBar = document.getElementById('bulkActionsBar');
+      if (selectedCount > 0) {
+        bulkActionsBar.classList.add('active');
+      } else {
+        bulkActionsBar.classList.remove('active');
+      }
+    }
+
+    // Close when clicking outside
+    window.onclick = function(event) {
+      const modal = document.getElementById('editModal');
+      if (event.target == modal) {
+        closeEditModal();
+      }
+    }
+
+    // Initialize
+    updateSelectedCount();
+  
+  style.
+    /* Modal Styles */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.5);
+      z-index: 1000;
+      overflow: auto;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .modal-dialog {
+      width: 100%;
+      max-width: 600px;
+      margin: 30px auto;
+    }
+    
+    .modal-content {
+      background-color: white;
+      border-radius: var(--border-radius);
+      box-shadow: var(--box-shadow);
+      animation: modalFadeIn 0.3s;
+    }
+    
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: var(--spacing-md) var(--spacing-lg);
+      border-bottom: 1px solid var(--gray-light);
+    }
+    
+    .modal-title {
+      margin: 0;
+      color: var(--primary);
+    }
+    
+    .modal-body {
+      padding: var(--spacing-lg);
+    }
+    
+    .modal-footer {
+      padding: var(--spacing-md) var(--spacing-lg);
+      border-top: 1px solid var(--gray-light);
+      display: flex;
+      justify-content: flex-end;
+      gap: var(--spacing-sm);
+    }
+    
+    .close {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--gray);
+      background: transparent;
+      border: none;
+      cursor: pointer;
+    }
+    
+    .close:hover {
+      color: var(--dark);
+    }
+    
+    @keyframes modalFadeIn {
+      from { opacity: 0; transform: translateY(-20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .d-inline {
+      display: inline-block;
+    }
+
+    #editTemplateContent {
+      min-height: 120px;
+    }

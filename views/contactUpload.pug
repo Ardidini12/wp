@@ -1,0 +1,72 @@
+extends layout
+
+block styles
+  link(rel='stylesheet', href='/stylesheets/contacts.css')
+  link(rel='stylesheet', href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css')
+
+block content
+  .page-header
+    h1 Upload Contacts
+    .page-actions
+      a.btn.btn-outline-primary(href="/contacts")
+        i.fas.fa-arrow-left.mr-1
+        | Back to Contacts
+
+  .upload-container
+    .upload-card
+      h3
+        i.fas.fa-upload.mr-1
+        | Import Contacts
+      
+      p.upload-description Upload your contacts from CSV, Excel, or JSON file. The file should contain columns for name, surname, phoneNumber, email, and birthday.
+      
+      form(action="/contacts/import" method="post" enctype="multipart/form-data")
+        .file-upload-area
+          i.fas.fa-file-upload.upload-icon
+          .file-info
+            p.file-prompt Select a file to upload
+            p.file-formats Supported formats: CSV, Excel (.xlsx), JSON
+          input#fileInput.file-input(type="file" name="file" accept=".csv,.xlsx,.xls,.json")
+          label.btn.btn-primary.browse-btn(for="fileInput") Browse Files
+        
+        #selectedFile.selected-file(style="display: none;")
+          i.fas.fa-file-alt.mr-1
+          span#fileName No file selected
+          button#clearFile.btn.btn-sm.btn-outline-danger(type="button")
+            i.fas.fa-times
+        
+        .upload-actions
+          button.btn.btn-primary.submit-btn(type="submit")
+            i.fas.fa-upload.mr-1
+            | Upload & Preview
+      
+      .upload-instructions
+        h4 Instructions
+        ol
+          li Prepare your file with the following columns: name, surname, phoneNumber, email, birthday
+          li For phone numbers, include country code (e.g., +1234567890)
+          li Birthday should be in YYYY-MM-DD format
+          li Upload the file using the form above
+          li Review the data before confirming the import
+
+block scripts
+  script.
+    const fileInput = document.getElementById('fileInput');
+    const selectedFile = document.getElementById('selectedFile');
+    const fileName = document.getElementById('fileName');
+    const clearFile = document.getElementById('clearFile');
+    
+    fileInput.addEventListener('change', function() {
+      if (this.files && this.files.length > 0) {
+        selectedFile.style.display = 'flex';
+        fileName.textContent = this.files[0].name;
+      } else {
+        selectedFile.style.display = 'none';
+      }
+    });
+    
+    clearFile.addEventListener('click', function(e) {
+      e.preventDefault();
+      fileInput.value = '';
+      selectedFile.style.display = 'none';
+    }); 

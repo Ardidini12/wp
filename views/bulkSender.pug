@@ -1,0 +1,187 @@
+extends layout
+
+block styles
+  link(rel='stylesheet', href='/stylesheets/bulkSender.css')
+  link(rel='stylesheet', href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css')
+
+block content
+  .page-header
+    h1 Bulk Sender
+    .page-actions
+      button.btn.btn-primary#toggleSelectedBtn(disabled)
+        i.fas.fa-paper-plane.mr-1
+        | Send to Selected
+        span#selectedCount (0)
+
+  .sender-container
+    form(action="/bulk-sender/send" method="post")
+      .contacts-section
+        h3 Select Contacts
+        if Object.keys(contactsBySource).length
+          each contacts, source in contactsBySource
+            .source-item
+              .source-header(onclick=`toggleVisibility('${source}')`)
+                .source-name= source
+                button.btn.btn-sm.btn-outline-primary(type="button") Toggle List
+              .source-content(id=`list-${source}` style="display:none;")
+                .select-all-control
+                  input(type="checkbox" id=`selectAll-${source}` onchange=`toggleSelectAll('${source}')`)
+                  label.ml-1(for=`selectAll-${source}`) Select All
+                ul.contacts-list
+                  each contact in contacts
+                    li.contact-item
+                      input.contact-checkbox(type="checkbox" name=source value=contact.id onchange="updateSelectedCount()")
+                      span= `${contact.name || 'N/A'} ${contact.surname || ''} (${contact.phoneNumber || 'N/A'})`
+        else
+          .alert.alert-warning
+            i.fas.fa-exclamation-triangle.mr-1
+            | No contacts available. Please add contacts first.
+
+      .form-section
+        h3 Message Settings
+        .form-group
+          label(for="template") Select Template:
+          if templates.length
+            select.form-control#template-select(name="template" required)
+              option(value="") -- Select a template --
+              each template in templates
+                option(value=template.id)= `${template.templateName}`
+                  span.text-muted  - #{template.templateContent.substring(0, 30)}...
+          else
+            .alert.alert-warning
+              i.fas.fa-exclamation-triangle.mr-1
+              | No templates available. Please add a template first.
+
+        .alert.alert-info.mt-3
+          i.fas.fa-info-circle.mr-1
+          | Messages will be sent with a 45-second interval between each contact.
+
+        button.btn.btn-primary.mt-3(type="submit")
+          i.fas.fa-paper-plane.mr-1
+          | Send Messages Now
+
+  .scheduled-messages
+    h2.mb-3 Scheduled Messages
+    button.btn.btn-outline-primary.toggle-messages#toggleMessages(type="button" onclick="toggleMessageList()")
+      i.fas.fa-list.mr-1
+      | Show Messages
+
+    div#messageList(style="display: none;")
+      if scheduledMessages && scheduledMessages.length
+        .message-queue
+          each message in scheduledMessages
+            .message-item(data-id=message.id)
+              .contact-info
+                span.phone= message.phoneNumber
+                if message.contactName || message.contactSurname
+                  span.name= ` (${message.contactName || ''} ${message.contactSurname || ''})`
+              .message-details
+                .message-content= message.message
+                .status-box
+                  span.status-label Status: 
+                  span(class=`status-${message.status}`)= message.status
+                  if message.status === 'pending'
+                    .countdown-container
+                      span.countdown-label Scheduled for: 
+                      .countdown(data-scheduled-time=message.scheduledTime)
+                  if message.sentTime
+                    .sent-time= `Sent at: ${new Date(message.sentTime).toLocaleString()}`
+      else
+        p.text-muted No messages scheduled yet.
+
+block scripts
+  script.
+    // Toggle message list visibility
+    function toggleMessageList() {
+      const list = document.getElementById('messageList');
+      const button = document.getElementById('toggleMessages');
+      if (list.style.display === 'none') {
+        list.style.display = 'block';
+        button.innerHTML = '<i class="fas fa-times mr-1"></i> Hide Messages';
+      } else {
+        list.style.display = 'none';
+        button.innerHTML = '<i class="fas fa-list mr-1"></i> Show Messages';
+      }
+    }
+
+    // Update countdowns
+    function updateCountdowns() {
+      document.querySelectorAll('.countdown').forEach(element => {
+        const scheduledTime = new Date(element.dataset.scheduledTime).getTime();
+        const now = Date.now();
+        const diff = scheduledTime - now;
+
+        if (diff <= 0) {
+          element.textContent = 'Ready to send';
+        } else {
+          const minutes = Math.floor(diff / 60000);
+          const seconds = Math.floor((diff % 60000) / 1000);
+          element.textContent = `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
+        }
+      });
+    }
+
+    // Toggle source list visibility
+    function toggleVisibility(source) {
+      const list = document.getElementById(`list-${source}`);
+      list.style.display = list.style.display === 'none' ? 'block' : 'none';
+    }
+
+    // Toggle select all
+    function toggleSelectAll(source) {
+      const checkboxes = document.querySelectorAll(`input[name="${source}"]`);
+      const selectAll = document.getElementById(`selectAll-${source}`);
+      checkboxes.forEach(checkbox => checkbox.checked = selectAll.checked);
+      updateSelectedCount();
+    }
+
+    // Update selected count
+    function updateSelectedCount() {
+      const selectedCount = document.querySelectorAll('input[type="checkbox"][name]:checked:not([id^="selectAll"])').length;
+      document.getElementById('selectedCount').textContent = `(${selectedCount})`;
+      document.getElementById('toggleSelectedBtn').disabled = selectedCount === 0;
+    }
+
+    // Initial setup
+    setInterval(updateCountdowns, 1000);
+    updateCountdowns();
+    
+    // Auto-refresh messages every 5 seconds
+    setInterval(async () => {
+      try {
+        const response = await fetch('/bulk-sender/messages');
+        const messages = await response.json();
+        
+        const container = document.querySelector('.message-queue');
+        if (container) {
+          container.innerHTML = messages.map(message => `
+            <div class="message-item" data-id="${message.id}">
+              <div class="contact-info">
+                <span class="phone">${message.phoneNumber}</span>
+                ${(message.contactName || message.contactSurname) ? 
+                  `<span class="name"> (${message.contactName || ''} ${message.contactSurname || ''})</span>` : ''}
+              </div>
+              <div class="message-details">
+                <div class="message-content">${message.message}</div>
+                <div class="status-box">
+                  <span class="status-label">Status:</span>
+                  <span class="status-${message.status}">${message.status}</span>
+                  ${message.status === 'pending' ? `
+                    <div class="countdown-container">
+                      <span class="countdown-label">Scheduled for:</span>
+                      <div class="countdown" data-scheduled-time="${message.scheduledTime}"></div>
+                    </div>` : ''}
+                  ${message.sentTime ? `
+                    <div class="sent-time">Sent at: ${new Date(message.sentTime).toLocaleString()}</div>
+                  ` : ''}
+                </div>
+              </div>
+            </div>
+          `).join('');
+          
+          updateCountdowns();
+        }
+      } catch (error) {
+        console.error('Error fetching messages:', error);
+      }
+    }, 5000);

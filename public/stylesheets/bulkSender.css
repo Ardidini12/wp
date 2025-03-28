@@ -1,0 +1,190 @@
+/* Bulk Sender Styles */
+.sender-container {
+  background-color: white;
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow-sm);
+  padding: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
+}
+
+.sender-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-lg);
+}
+
+.contacts-section {
+  margin-bottom: var(--spacing-lg);
+}
+
+.source-item {
+  margin-bottom: var(--spacing-md);
+  border: 1px solid var(--gray-light);
+  border-radius: var(--border-radius);
+}
+
+.source-header {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--spacing-md);
+  background-color: var(--light);
+  border-radius: var(--border-radius-sm) var(--border-radius-sm) 0 0;
+  cursor: pointer;
+}
+
+.source-name {
+  font-weight: 600;
+  color: var(--primary);
+}
+
+.source-content {
+  padding: var(--spacing-md);
+}
+
+.contacts-list {
+  list-style-type: none;
+  padding: 0;
+  margin: 0;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.contact-item {
+  padding: var(--spacing-sm) 0;
+  border-bottom: 1px solid var(--gray-light);
+  display: flex;
+  align-items: center;
+}
+
+.contact-item:last-child {
+  border-bottom: none;
+}
+
+.contact-checkbox {
+  margin-right: var(--spacing-sm);
+}
+
+.form-section {
+  margin-bottom: var(--spacing-lg);
+  border-top: 1px solid var(--gray-light);
+  padding-top: var(--spacing-lg);
+}
+
+.template-select {
+  background-color: white;
+  width: 100%;
+  padding: var(--spacing-sm);
+  border: 1px solid var(--gray-light);
+  border-radius: var(--border-radius);
+  margin-bottom: var(--spacing-md);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+}
+
+.scheduled-messages {
+  margin-top: var(--spacing-xl);
+}
+
+.toggle-messages {
+  margin-bottom: var(--spacing-md);
+}
+
+.message-queue {
+  margin-top: var(--spacing-md);
+}
+
+.message-item {
+  border: 1px solid var(--gray-light);
+  border-radius: var(--border-radius);
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+  background-color: white;
+}
+
+.message-item:hover {
+  box-shadow: var(--box-shadow-sm);
+}
+
+.contact-info {
+  font-weight: 500;
+  margin-bottom: var(--spacing-xs);
+}
+
+.phone {
+  color: var(--primary);
+}
+
+.name {
+  color: var(--gray);
+}
+
+.message-content {
+  margin-bottom: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  background-color: var(--gray-light);
+  border-radius: var(--border-radius-sm);
+  white-space: pre-wrap;
+}
+
+.status-box {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.status-pending {
+  color: var(--warning);
+}
+
+.status-sent {
+  color: var(--success);
+}
+
+.status-failed {
+  color: var(--danger);
+}
+
+.countdown-container {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: var(--font-size-sm);
+  color: var(--gray);
+}
+
+.countdown {
+  font-weight: 600;
+  color: var(--primary);
+}
+
+.sent-time {
+  font-size: var(--font-size-sm);
+  color: var(--gray);
+}
+
+/* Select all controls */
+.select-all-control {
+  display: flex;
+  align-items: center;
+  margin-bottom: var(--spacing-sm);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .sender-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-md);
+  }
+} 

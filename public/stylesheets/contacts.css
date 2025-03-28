@@ -1,0 +1,355 @@
+/* Contacts Page Styles */
+.contacts-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-lg);
+}
+
+.contacts-header-title {
+  margin: 0;
+}
+
+.contacts-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.contacts-table-container {
+  background-color: white;
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow-sm);
+  overflow: hidden;
+  margin-bottom: var(--spacing-lg);
+}
+
+.contacts-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.contacts-table th,
+.contacts-table td {
+  padding: var(--spacing-md);
+  text-align: left;
+  border-bottom: 1px solid var(--gray-light);
+}
+
+.contacts-table th {
+  background-color: var(--light);
+  font-weight: 600;
+  color: var(--gray-dark);
+}
+
+.contacts-table tbody tr:hover {
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+.contacts-table td:last-child {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.contact-actions {
+  display: flex;
+  gap: var(--spacing-xs);
+  justify-content: flex-end;
+}
+
+/* Add Contact Form */
+.add-contact-form {
+  background-color: white;
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
+  padding: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: var(--spacing-md);
+}
+
+.form-footer {
+  margin-top: var(--spacing-lg);
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-sm);
+}
+
+/* File Upload */
+.file-upload-container {
+  background-color: white;
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow-sm);
+  padding: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
+}
+
+.file-upload-title {
+  margin-top: 0;
+  margin-bottom: var(--spacing-md);
+}
+
+.file-upload-form {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.file-input-wrapper {
+  position: relative;
+  flex-grow: 1;
+}
+
+.file-upload-label {
+  display: block;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background-color: var(--light);
+  border: 1px dashed var(--gray);
+  border-radius: var(--border-radius);
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.file-upload-label:hover {
+  background-color: var(--gray-light);
+  border-color: var(--primary);
+}
+
+.file-upload-input {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* Error Messages */
+.error-message {
+  color: var(--danger);
+  font-size: var(--font-size-sm);
+  margin-top: var(--spacing-xs);
+  display: none;
+}
+
+input.error {
+  border-color: var(--danger);
+}
+
+/* Checkbox styling */
+.checkbox-cell {
+  width: 40px;
+  text-align: center;
+}
+
+/* Bulk Actions Bar */
+.bulk-actions-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-md);
+  background-color: var(--primary);
+  color: white;
+  border-radius: var(--border-radius);
+  margin-bottom: var(--spacing-md);
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: all 0.3s;
+  pointer-events: none;
+}
+
+.bulk-actions-bar.active {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.selected-count {
+  font-weight: 500;
+}
+
+.bulk-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+/* Export Buttons */
+.export-buttons {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .contacts-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-md);
+  }
+  
+  .contacts-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  
+  .contacts-table {
+    display: block;
+    overflow-x: auto;
+  }
+  
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .file-upload-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .bulk-actions-bar {
+    flex-direction: column;
+    gap: var(--spacing-md);
+  }
+}
+
+/* Contacts Styles */
+.upload-container {
+  margin-top: 20px;
+}
+
+.upload-card {
+  background: white;
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow-sm);
+  padding: 25px;
+  margin-bottom: 30px;
+}
+
+.upload-card h3 {
+  color: var(--secondary);
+  margin-bottom: 20px;
+  font-size: 1.3rem;
+  display: flex;
+  align-items: center;
+}
+
+.upload-card h3 i {
+  color: var(--primary);
+  margin-right: 10px;
+}
+
+.upload-description {
+  color: var(--gray);
+  margin-bottom: 25px;
+}
+
+.file-upload-area {
+  border: 2px dashed var(--border-color);
+  border-radius: var(--border-radius);
+  padding: 30px;
+  text-align: center;
+  position: relative;
+  transition: border-color 0.2s;
+  background-color: #f9f9f9;
+  margin-bottom: 20px;
+}
+
+.file-upload-area:hover {
+  border-color: var(--primary);
+}
+
+.upload-icon {
+  font-size: 3rem;
+  color: var(--primary);
+  margin-bottom: 15px;
+  opacity: 0.7;
+}
+
+.file-info {
+  margin-bottom: 20px;
+}
+
+.file-prompt {
+  font-weight: 500;
+  color: var(--secondary);
+  margin-bottom: 5px;
+}
+
+.file-formats {
+  color: var(--gray);
+  font-size: 0.9rem;
+}
+
+.file-input {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.browse-btn {
+  position: relative;
+  z-index: 2;
+}
+
+.selected-file {
+  display: flex;
+  align-items: center;
+  background: #f5f8fa;
+  border-radius: var(--border-radius-sm);
+  padding: 10px 15px;
+  margin-bottom: 20px;
+}
+
+.selected-file i {
+  color: var(--primary);
+  font-size: 1.2rem;
+  margin-right: 10px;
+}
+
+.selected-file span {
+  flex: 1;
+  font-weight: 500;
+  color: var(--secondary);
+}
+
+.upload-actions {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.submit-btn {
+  min-width: 180px;
+}
+
+.upload-instructions {
+  background: #f9f9f9;
+  border-radius: var(--border-radius);
+  padding: 20px;
+  border-left: 4px solid var(--primary);
+}
+
+.upload-instructions h4 {
+  color: var(--secondary);
+  margin-bottom: 15px;
+  font-size: 1.1rem;
+}
+
+.upload-instructions ol {
+  margin-left: 20px;
+  color: var(--gray-dark);
+}
+
+.upload-instructions li {
+  margin-bottom: 8px;
+} 
