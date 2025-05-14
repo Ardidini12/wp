@@ -1,0 +1,143 @@
+extends layout
+
+block styles
+  link(rel='stylesheet', href='/stylesheets/bulkSender.css')
+  link(rel='stylesheet', href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css')
+  style.
+    .confirmation-container {
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 30px;
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      text-align: center;
+    }
+    
+    .confirmation-icon {
+      font-size: 4rem;
+      color: #28a745;
+      margin-bottom: 20px;
+    }
+    
+    .confirmation-title {
+      font-size: 2rem;
+      margin-bottom: 20px;
+      color: #333;
+    }
+    
+    .confirmation-details {
+      margin: 30px 0;
+      font-size: 1.1rem;
+      color: #666;
+    }
+    
+    .stat-box {
+      display: inline-block;
+      margin: 10px 20px;
+      text-align: center;
+    }
+    
+    .stat-value {
+      font-size: 2.5rem;
+      font-weight: bold;
+      color: #007bff;
+      display: block;
+    }
+    
+    .stat-label {
+      font-size: 1rem;
+      color: #666;
+    }
+    
+    .warning-note {
+      background-color: #fff3cd;
+      border-left: 4px solid #ffc107;
+      padding: 15px;
+      margin: 20px 0;
+      font-size: 0.9rem;
+      text-align: left;
+    }
+    
+    .info-note {
+      background-color: #d1ecf1;
+      border-left: 4px solid #17a2b8;
+      padding: 15px;
+      margin: 20px 0;
+      font-size: 0.9rem;
+      text-align: left;
+    }
+
+block content
+  .page-header
+    h1 Messages Scheduled
+    .page-actions
+      a.btn.btn-outline-primary(href="/dashboard")
+        i.fas.fa-tachometer-alt.mr-1
+        | Dashboard
+      a.btn.btn-outline-primary(href="/bulkSender")
+        i.fas.fa-paper-plane.mr-1
+        | Back to Bulk Sender
+
+  .confirmation-container
+    .confirmation-icon
+      i.fas.fa-check-circle
+    
+    h2.confirmation-title Messages Successfully Scheduled
+    
+    .confirmation-details
+      .stat-box
+        span.stat-value #{count}
+        span.stat-label Messages Scheduled
+      
+      .stat-box
+        span.stat-value
+          if interval >= 60
+            | #{Math.floor(interval / 60)}m #{interval % 60}s
+          else
+            | #{interval}s
+        span.stat-label Message Interval
+      
+      .stat-box
+        span.stat-value 
+          if estimatedDays && estimatedDays > 1
+            | ~#{estimatedDays}
+            span.stat-label Days to Complete
+          else
+            | #{estimatedTime}
+            span.stat-label Hours to Complete
+    
+    p Your messages have been scheduled and will be sent every 
+      if interval >= 60
+        | #{Math.floor(interval / 60)} minute#{Math.floor(interval / 60) !== 1 ? 's' : ''} 
+        if interval % 60 > 0
+          | and #{interval % 60} second#{interval % 60 !== 1 ? 's' : ''}
+      else
+        | #{interval} second#{interval !== 1 ? 's' : ''}
+      | .
+    
+    if estimatedDays && estimatedDays > 1
+      .info-note
+        p
+          strong Working Hours: 
+          | Messages will only be sent during your configured working hours.
+        p The estimated completion time is based on your current working hours settings.
+        p
+          a.btn.btn-sm.btn-outline-info(href="/settings/working-hours")
+            i.far.fa-clock.mr-1
+            | View Working Hours Settings
+    
+    .warning-note
+      p
+        strong Note:
+        |  Your phone must remain connected to WhatsApp Web during the entire sending process.
+      p If your connection is lost, messages will pause until you reconnect.
+      
+    .mt-4
+      a.btn.btn-primary.mr-2(href="/whatsapp-check")
+        i.fab.fa-whatsapp.mr-1
+        | Check WhatsApp Status
+      
+      a.btn.btn-outline-primary(href="/bulkSender")
+        i.fas.fa-paper-plane.mr-1
+        | Schedule More Messages 

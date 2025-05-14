@@ -5,7 +5,12 @@ var bcrypt = require('bcrypt');
 var { Contact } = require('../models'); // Import the Contact model
 var { QRCode } = require('../models'); // Import the QRCode model
 const multer = require('multer');
-const upload = multer({ dest: 'uploads/' });
+const upload = multer({
+  dest: 'uploads/',
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB file size limit
+  }
+});
 const csvParser = require('csv-parser');
 const xlsx = require('xlsx');
 const jsonfile = require('jsonfile');
@@ -16,6 +21,7 @@ const { ScheduledMessage } = require('../models');
 const { getContactsGroupedBySource } = require('../utils/contactUtils'); // Import the utility function
 const { scheduleMessages } = require('../utils/bulkSender'); // Import the scheduleMessages function
 const bulkSender = require('../utils/bulkSender'); // Import the bulkSender utility
+const { Op } = require('sequelize');
 
 // Middleware to check if user is logged in
 function isAuthenticated(req, res, next) {
@@ -136,10 +142,83 @@ router.get('/dashboard', isAuthenticated, async (req, res) => {
 // GET contacts page
 router.get('/contacts', isAuthenticated, async (req, res) => {
   try {
-    const contacts = await Contact.findAll();
-    res.render('contact', { contacts, currentPage: 'contacts' });
+    // Get pagination parameters from query
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 100; // Show 100 contacts per page
+    const offset = (page - 1) * limit;
+    
+    // Get the total count of contacts for pagination
+    const totalContacts = await Contact.count();
+    const totalPages = Math.ceil(totalContacts / limit);
+    
+    // Get contacts for the current page with pagination
+    const contacts = await Contact.findAll({
+      limit,
+      offset,
+      order: [['id', 'DESC']] // Most recent first
+    });
+    
+    res.render('contact', {
+      contacts,
+      currentPage: 'contacts',
+      pagination: {
+        page,
+        limit,
+        totalContacts,
+        totalPages
+      }
+    });
   } catch (err) {
+    console.error('Error fetching contacts:', err);
     res.status(500).send('Error fetching contacts');
+  }
+});
+
+// GET search contacts
+router.get('/contacts/search', isAuthenticated, async (req, res) => {
+  try {
+    const searchTerm = req.query.term || '';
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 100;
+    const offset = (page - 1) * limit;
+    
+    // Search condition with Sequelize
+    const searchCondition = {
+      [Op.or]: [
+        { name: { [Op.like]: `%${searchTerm}%` } },
+        { surname: { [Op.like]: `%${searchTerm}%` } },
+        { phoneNumber: { [Op.like]: `%${searchTerm}%` } },
+        { email: { [Op.like]: `%${searchTerm}%` } },
+        { source: { [Op.like]: `%${searchTerm}%` } }
+      ]
+    };
+    
+    // Get total count of matching contacts
+    const totalContacts = await Contact.count({ where: searchCondition });
+    const totalPages = Math.ceil(totalContacts / limit);
+    
+    // Get matching contacts for current page
+    const contacts = await Contact.findAll({
+      where: searchCondition,
+      limit,
+      offset,
+      order: [['id', 'DESC']]
+    });
+    
+    res.render('contact', {
+      contacts,
+      currentPage: 'contacts',
+      searchTerm,
+      pagination: {
+        page,
+        limit,
+        totalContacts,
+        totalPages
+      }
+    });
+  } catch (err) {
+    console.error('Error searching contacts:', err);
+    res.status(500).send('Error searching contacts');
   }
 });
 
@@ -229,63 +308,144 @@ router.post('/contacts/import', upload.single('file'), async (req, res) => {
     return res.status(400).send('Please choose a file');
   }
 
-  let contacts = [];
-  const fileType = file.mimetype;
-  const originalFilename = file.originalname; // Store the original filename
-
   try {
-    if (fileType.includes('csv')) {
-      // Parse CSV
-      const results = [];
-      fs.createReadStream(file.path)
-        .pipe(csvParser())
-        .on('data', (data) => results.push(data))
-        .on('end', () => {
-          contacts = parseContacts(results);
-          console.log('Parsed Contacts:', contacts);
-          res.render('preview', { contacts, filePath: file.path, originalFilename });
-        });
-    } else if (fileType.includes('json')) {
-      // Parse JSON
-      contacts = parseContacts(jsonfile.readFileSync(file.path));
-      console.log('Parsed Contacts:', contacts);
-      res.render('preview', { contacts, filePath: file.path, originalFilename });
-    } else if (fileType.includes('spreadsheetml')) {
-      // Parse Excel
-      const workbook = xlsx.readFile(file.path);
-      const sheetName = workbook.SheetNames[0];
-      const sheet = workbook.Sheets[sheetName];
-      contacts = parseContacts(xlsx.utils.sheet_to_json(sheet));
-      console.log('Parsed Contacts:', contacts);
-      res.render('preview', { contacts, filePath: file.path, originalFilename });
-    } else {
-      return res.status(400).send('Unsupported file type');
-    }
+  const fileType = file.mimetype;
+    const originalFilename = file.originalname;
+    const totalContacts = await countContactsInFile(file.path, fileType);
+    
+    // Store file info in session for later processing
+    req.session.importFile = {
+      path: file.path,
+      type: fileType,
+      name: originalFilename,
+      totalContacts
+    };
+    
+    // Redirect to a page that will show import progress rather than previewing all contacts
+    res.render('importProgress', { 
+      fileName: originalFilename, 
+      totalContacts,
+      currentPage: 'contacts'
+    });
   } catch (err) {
     console.error('Error processing file:', err);
-    res.status(500).send('Error processing file');
+    res.status(500).send('Error processing file: ' + err.message);
   }
 });
 
-// POST confirm import
-router.post('/contacts/confirm-import', async (req, res) => {
-  let contacts;
+// Function to count contacts in a file without loading all into memory
+async function countContactsInFile(filePath, fileType) {
+  return new Promise((resolve, reject) => {
+    try {
+      if (fileType.includes('csv')) {
+        let count = 0;
+        fs.createReadStream(filePath)
+          .pipe(csvParser())
+          .on('data', () => count++)
+          .on('end', () => resolve(count))
+          .on('error', (err) => reject(err));
+      } else if (fileType.includes('json')) {
+        const data = jsonfile.readFileSync(filePath);
+        resolve(Array.isArray(data) ? data.length : 0);
+      } else if (fileType.includes('spreadsheetml')) {
+        const workbook = xlsx.readFile(filePath);
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+        const data = xlsx.utils.sheet_to_json(sheet);
+        resolve(data.length);
+      } else {
+        reject(new Error('Unsupported file type'));
+      }
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+// New route to start the batch import process
+router.post('/contacts/start-import', isAuthenticated, async (req, res) => {
   try {
-    // Parse contacts from the hidden input field
-    contacts = JSON.parse(req.body.contacts);
+    if (!req.session.importFile) {
+      return res.status(400).json({ error: 'No import file information found' });
+    }
+    
+    const { path, type, name } = req.session.importFile;
+    
+    // Start the import process in the background
+    startBatchImport(path, type, name)
+      .then(result => {
+        console.log(`Import completed: ${result.imported} contacts imported, ${result.failed} failed`);
+        // Clean up the session
+        delete req.session.importFile;
+      })
+      .catch(err => {
+        console.error('Error in batch import:', err);
+      });
+    
+    // Immediately return success - the actual import happens in background
+    res.json({ success: true, message: 'Import started' });
   } catch (err) {
-    console.error('Error parsing contacts:', err);
-    return res.status(400).send('Invalid contacts data');
+    console.error('Error starting import:', err);
+    res.status(500).json({ error: 'Error starting import process' });
   }
+});
 
-  if (!Array.isArray(contacts)) {
-    return res.status(400).send('Contacts data is not an array');
-  }
-
-  const fileName = req.body.fileName || 'unknown file'; // Get filename from form
-
+// Function to handle batch import of contacts
+async function startBatchImport(filePath, fileType, fileName) {
+  const BATCH_SIZE = 500; // Process 500 contacts at a time
+  let imported = 0;
+  let failed = 0;
+  
   try {
-    for (const contact of contacts) {
+    let contacts = [];
+    
+    // Read file based on type
+    if (fileType.includes('csv')) {
+      const results = [];
+      await new Promise((resolve, reject) => {
+        fs.createReadStream(filePath)
+        .pipe(csvParser())
+        .on('data', (data) => results.push(data))
+          .on('end', resolve)
+          .on('error', reject);
+      });
+          contacts = parseContacts(results);
+    } else if (fileType.includes('json')) {
+      contacts = parseContacts(jsonfile.readFileSync(filePath));
+    } else if (fileType.includes('spreadsheetml')) {
+      const workbook = xlsx.readFile(filePath);
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      contacts = parseContacts(xlsx.utils.sheet_to_json(sheet));
+    }
+    
+    // Process contacts in batches
+    for (let i = 0; i < contacts.length; i += BATCH_SIZE) {
+      const batch = contacts.slice(i, i + BATCH_SIZE);
+      const results = await processBatch(batch, fileName);
+      imported += results.imported;
+      failed += results.failed;
+    }
+    
+    // Clean up the file
+    fs.unlink(filePath, (err) => {
+      if (err) console.error('Error deleting import file:', err);
+    });
+    
+    return { imported, failed };
+  } catch (err) {
+    console.error('Error in batch import:', err);
+    return { imported, failed, error: err.message };
+  }
+}
+
+// Process a batch of contacts
+async function processBatch(contacts, fileName) {
+  let imported = 0;
+  let failed = 0;
+  
+  for (const contact of contacts) {
+    try {
       await Contact.create({
         name: contact.name,
         surname: contact.surname,
@@ -294,26 +454,25 @@ router.post('/contacts/confirm-import', async (req, res) => {
         birthday: contact.birthday,
         source: `imported from "${fileName}"`
       });
+      imported++;
+    } catch (err) {
+      console.error('Error importing contact:', err);
+      failed++;
     }
-    res.redirect('/contacts');
-  } catch (err) {
-    console.error('Error importing contacts:', err);
-    res.status(500).send('Error importing contacts');
   }
-});
+  
+  return { imported, failed };
+}
 
-// POST cancel import
-router.post('/contacts/cancel-import', (req, res) => {
-  const filePath = req.body.filePath; // Assume the file path is sent in the request body
-  if (filePath) {
-    fs.unlink(filePath, (err) => {
-      if (err) {
-        console.error('Error deleting file:', err);
-      }
-      res.redirect('/contacts');
-    });
-  } else {
-    res.redirect('/contacts');
+// Route to check import progress
+router.get('/contacts/import-status', isAuthenticated, async (req, res) => {
+  try {
+    // Get current count of contacts in the database
+    const count = await Contact.count();
+    res.json({ count });
+  } catch (err) {
+    console.error('Error checking import status:', err);
+    res.status(500).json({ error: 'Error checking import status' });
   }
 });
 
@@ -370,22 +529,102 @@ router.get('/contacts/delete/:id', isAuthenticated, async (req, res) => {
 router.post('/contacts/delete-multiple', isAuthenticated, async (req, res) => {
   try {
     const { ids } = req.body;
-    await Contact.destroy({ where: { id: ids } });
-    res.json({ success: true });
+    
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ success: false, message: 'No contact IDs provided' });
+    }
+    
+    // Delete all contacts with the provided IDs
+    const deletedCount = await Contact.destroy({
+      where: {
+        id: {
+          [Op.in]: ids
+        }
+      }
+    });
+    
+    res.json({ 
+      success: true, 
+      message: `Successfully deleted ${deletedCount} contacts`,
+      deletedCount
+    });
   } catch (err) {
-    console.error('Error deleting contacts:', err);
-    res.status(500).json({ success: false });
+    console.error('Error deleting multiple contacts:', err);
+    res.status(500).json({ success: false, message: 'Error deleting contacts' });
+  }
+});
+
+// DELETE ALL contacts
+router.post('/contacts/delete-all', isAuthenticated, async (req, res) => {
+  try {
+    console.log('Delete all contacts requested');
+    
+    // Get the total count first for reporting
+    const totalCount = await Contact.count();
+    console.log(`Attempting to delete all ${totalCount} contacts`);
+    
+    // Delete all contacts without any conditions
+    const deletedCount = await Contact.destroy({
+      where: {},
+      truncate: false // Use DELETE FROM, not TRUNCATE TABLE
+    });
+    
+    console.log(`Successfully deleted ${deletedCount} contacts`);
+    
+    res.json({
+      success: true,
+      message: `Successfully deleted all ${deletedCount} contacts`,
+      deletedCount
+    });
+  } catch (err) {
+    console.error('Error deleting all contacts:', err);
+    res.status(500).json({ 
+      success: false, 
+      message: `Error deleting all contacts: ${err.message}`
+    });
   }
 });
 
 // Export contacts as JSON
 router.get('/contacts/export/json', isAuthenticated, async (req, res) => {
   try {
-    const contacts = await Contact.findAll();
-    const jsonData = JSON.stringify(contacts.map(contact => contact.toJSON()), null, 2);
     res.header('Content-Type', 'application/json');
-    res.attachment('contacts.json');
-    res.send(jsonData);
+    res.header('Content-Disposition', 'attachment; filename="contacts.json"');
+    
+    // Start writing with an opening bracket
+    res.write('[\n');
+    
+    // Get total contacts count for batch processing
+    const totalContacts = await Contact.count();
+    const batchSize = 1000;
+    let processedContacts = 0;
+    let isFirst = true;
+    
+    // Process in batches
+    while (processedContacts < totalContacts) {
+      const contacts = await Contact.findAll({
+        limit: batchSize,
+        offset: processedContacts,
+        order: [['id', 'ASC']]
+      });
+      
+      // Write each contact as JSON
+      for (const contact of contacts) {
+        // Add comma between records (but not before the first one)
+        if (!isFirst) {
+          res.write(',\n');
+        } else {
+          isFirst = false;
+        }
+        res.write(JSON.stringify(contact.toJSON()));
+      }
+      
+      processedContacts += contacts.length;
+    }
+    
+    // End JSON array
+    res.write('\n]');
+    res.end();
   } catch (err) {
     console.error('Error exporting contacts as JSON:', err);
     res.status(500).send('Error exporting contacts');
@@ -395,31 +634,113 @@ router.get('/contacts/export/json', isAuthenticated, async (req, res) => {
 // Export contacts as CSV
 router.get('/contacts/export/csv', isAuthenticated, async (req, res) => {
   try {
-    const contacts = await Contact.findAll();
-    const csv = json2csv(contacts.map(contact => contact.toJSON()));
-    res.header('Content-Type', 'text/csv');
-    res.attachment('contacts.csv');
-    res.send(csv);
+    // Set headers before any data is sent
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="contacts.csv"');
+    
+    // Define CSV fields
+    const fields = ['id', 'name', 'surname', 'phoneNumber', 'email', 'birthday', 'source', 'createdAt', 'updatedAt'];
+    
+    // Write header row
+    res.write(`${fields.join(',')}\n`);
+    
+    // Get total contacts count for batch processing
+    const totalContacts = await Contact.count();
+    const batchSize = 1000;
+    let processedContacts = 0;
+    
+    // Process in batches
+    while (processedContacts < totalContacts) {
+      const contacts = await Contact.findAll({
+        limit: batchSize,
+        offset: processedContacts,
+        order: [['id', 'ASC']]
+      });
+      
+      // Convert contacts to CSV rows
+      for (const contact of contacts) {
+        const data = contact.toJSON();
+        const row = fields.map(field => {
+          const value = data[field];
+          if (value === null || value === undefined) return '';
+          if (field === 'createdAt' || field === 'updatedAt') {
+            return value ? `"${new Date(value).toISOString()}"` : '';
+          }
+          return typeof value === 'string' ? `"${value.replace(/"/g, '""')}"` : value;
+        });
+        res.write(`${row.join(',')}\n`);
+      }
+      
+      processedContacts += contacts.length;
+    }
+    
+    res.end();
   } catch (err) {
     console.error('Error exporting contacts as CSV:', err);
+    // Only send error response if headers haven't been sent
+    if (!res.headersSent) {
     res.status(500).send('Error exporting contacts');
+    }
   }
 });
 
 // Export contacts as Excel
 router.get('/contacts/export/excel', isAuthenticated, async (req, res) => {
   try {
-    const contacts = await Contact.findAll();
-    const worksheet = xlsx.utils.json_to_sheet(contacts.map(contact => contact.toJSON()));
+    // Create workbook and worksheet
     const workbook = xlsx.utils.book_new();
+    const worksheet = xlsx.utils.aoa_to_sheet([['ID', 'Name', 'Surname', 'Phone Number', 'Email', 'Birthday', 'Source', 'Created At', 'Updated At']]);
+    
+    // Get total contacts count for batch processing
+    const totalContacts = await Contact.count();
+    const batchSize = 1000;
+    let processedContacts = 0;
+    let rowNum = 1; // Start after header row
+    
+    // Process in batches
+    while (processedContacts < totalContacts) {
+      const contacts = await Contact.findAll({
+        limit: batchSize,
+        offset: processedContacts,
+        order: [['id', 'ASC']]
+      });
+      
+      // Add each contact to the worksheet
+      contacts.forEach(contact => {
+        const data = contact.toJSON();
+        xlsx.utils.sheet_add_aoa(worksheet, [[
+          data.id,
+          data.name || '',
+          data.surname || '',
+          data.phoneNumber || '',
+          data.email || '',
+          data.birthday || '',
+          data.source || '',
+          data.createdAt ? new Date(data.createdAt).toISOString() : '',
+          data.updatedAt ? new Date(data.updatedAt).toISOString() : ''
+        ]], { origin: `A${rowNum + 1}` });
+        rowNum++;
+      });
+      
+      processedContacts += contacts.length;
+    }
+    
+    // Add worksheet to workbook
     xlsx.utils.book_append_sheet(workbook, worksheet, 'Contacts');
+    
+    // Set headers before sending the buffer
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="contacts.xlsx"');
+    
+    // Send the workbook as a buffer
     const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-    res.header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.attachment('contacts.xlsx');
     res.send(buffer);
   } catch (err) {
     console.error('Error exporting contacts as Excel:', err);
+    // Only send error response if headers haven't been sent
+    if (!res.headersSent) {
     res.status(500).send('Error exporting contacts');
+    }
   }
 });
 
@@ -649,6 +970,65 @@ router.get('/debug/refresh-qr-code', isAuthenticated, async (req, res) => {
   } catch (err) {
     console.error('Error in debug endpoint:', err);
     res.status(500).json({ error: 'Error refreshing QR code' });
+  }
+});
+
+// POST send message now
+router.post('/messages/send', isAuthenticated, async (req, res) => {
+  try {
+    const { templateId, contactId } = req.body;
+    
+    // Validate input
+    if (!templateId || !contactId) {
+      return res.status(400).json({ success: false, error: 'Template ID and Contact ID are required' });
+    }
+    
+    // Check WhatsApp connection
+    const whatsappClient = require('../utils/whatsappClient');
+    if (!whatsappClient.isConnected()) {
+      return res.status(400).json({ success: false, error: 'WhatsApp is not connected' });
+    }
+    
+    // Create and send the message
+    const message = await ScheduledMessage.create({
+      templateId,
+      contactId,
+      status: 'pending',
+      scheduledTime: new Date()
+    });
+    
+    // Trigger immediate sending
+    await bulkSender.sendMessage(message);
+    
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error sending message:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST schedule message
+router.post('/messages/schedule', isAuthenticated, async (req, res) => {
+  try {
+    const { templateId, contactId, scheduledTime } = req.body;
+    
+    // Validate input
+    if (!templateId || !contactId || !scheduledTime) {
+      return res.status(400).json({ success: false, error: 'Template ID, Contact ID, and Scheduled Time are required' });
+    }
+    
+    // Create scheduled message
+    await ScheduledMessage.create({
+      templateId,
+      contactId,
+      status: 'scheduled',
+      scheduledTime: new Date(scheduledTime)
+    });
+    
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error scheduling message:', err);
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 

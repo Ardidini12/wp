@@ -1,0 +1,472 @@
+extends layout
+
+block styles
+  style.
+    .sales-view-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    
+    .stats {
+      margin-bottom: 15px;
+      color: #666;
+    }
+    
+    .controls {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    
+    .filter-form {
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+    }
+    
+    .filter-form input {
+      flex-grow: 1;
+      margin-right: 10px;
+    }
+    
+    .sales-table-container {
+      overflow-x: auto;
+    }
+    
+    .sales-table th {
+      background-color: #f8f9fa;
+      position: sticky;
+      top: 0;
+    }
+    
+    .sales-summary {
+      margin-top: 20px;
+      padding: 15px;
+      background-color: #f8f9fa;
+      border-radius: 5px;
+    }
+    
+    .summary-item {
+      margin-bottom: 10px;
+    }
+    
+    .summary-item strong {
+      margin-right: 5px;
+    }
+    
+    .json-container {
+      font-family: monospace;
+      white-space: pre-wrap;
+      background-color: #f8f9fa;
+      padding: 15px;
+      border-radius: 5px;
+      max-height: 500px;
+      overflow-y: auto;
+    }
+    
+    .json-viewer {
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      overflow: hidden;
+    }
+    
+    .json-key {
+      color: #07a;
+    }
+    
+    .json-string {
+      color: #690;
+    }
+    
+    .json-number {
+      color: #905;
+    }
+    
+    .json-boolean {
+      color: #07a;
+    }
+    
+    .json-null {
+      color: #999;
+    }
+
+block content
+  .page-header
+    h1 Sales Data View
+    p.text-muted View and analyze imported sales data from BSS API
+  
+  .sales-view-container
+    .controls
+      a.btn.btn-secondary(href='/sales')
+        i.fas.fa-arrow-left.mr-2
+        | Back to Sales
+      
+      .btn-group
+        button.btn.btn-primary#exportJsonBtn
+          i.fas.fa-file-code.mr-1
+          | Export JSON
+        button.btn.btn-danger#deleteBtn(data-id=importRecord.id)
+          i.fas.fa-trash.mr-1
+          | Delete Import
+    
+    .stats
+      p
+        strong Import Date: 
+        span= new Date(importRecord.importDate).toLocaleString()
+      if importRecord.parameters
+        p
+          strong Date Range: 
+          span #{new Date(importRecord.parameters.startDate).toLocaleDateString()} - #{new Date(importRecord.parameters.endDate).toLocaleDateString()}
+      p
+        strong Records Imported: 
+        span= importRecord.recordsImported || 0
+    
+    form.filter-form
+      input.form-control#filterInput(type="text", placeholder="Filter sales data...")
+      button.btn.btn-primary#filterBtn(type="button")
+        i.fas.fa-search.mr-1
+        | Filter
+    
+    .sales-summary#salesSummary
+      h4 Sales Summary
+      .row
+        .col-md-4
+          .summary-item
+            strong Total Sales:
+            span#totalSales 0
+        .col-md-4
+          .summary-item
+            strong Unique Customers:
+            span#uniqueCustomers 0
+        .col-md-4
+          .summary-item
+            strong Latest Sale:
+            span#latestSale -
+    
+    .sales-table-container
+      if salesData && (Array.isArray(salesData) ? salesData.length > 0 : Object.keys(salesData).length > 0)
+        table.table.table-striped.sales-table#salesTable
+          thead
+            tr
+              th Sale ID
+              th Document #
+              th Document Date
+              th Customer Name
+              th Phone
+              th Customer Code
+              th Actions
+          tbody
+            each sale in Array.isArray(salesData) ? salesData : [salesData]
+              tr
+                td= sale.id
+                td= sale.documentNumber
+                td= sale.documentDate ? new Date(sale.documentDate).toLocaleString() : ''
+                td= sale.businessEntity ? sale.businessEntity.name : ''
+                td= sale.businessEntity ? sale.businessEntity.phone : ''
+                td= sale.businessEntity ? sale.businessEntity.code : ''
+                td
+                  button.btn.btn-sm.btn-info.view-details-btn(data-id=sale.id)
+                    i.fas.fa-eye.mr-1
+                    | Details
+      else
+        .alert.alert-info No sales data available
+    
+    #saleDetailsModal.modal.fade(tabindex='-1')
+      .modal-dialog.modal-lg
+        .modal-content
+          .modal-header
+            h5.modal-title Sale Details
+            button.close#modalCloseX(type='button' aria-label='Close')
+              span &times;
+          .modal-body
+            .json-container#jsonDetails
+          .modal-footer
+            button.btn.btn-secondary#modalCloseBtn(type='button') Close
+
+block scripts
+  script.
+    // Initialize data
+    let salesData = !{JSON.stringify(salesData || [])};
+    if (!Array.isArray(salesData)) {
+      salesData = [salesData];
+    }
+    let filteredData = [...salesData];
+    
+    // Calculate and update summary
+    function updateSummary() {
+      if (filteredData.length === 0) {
+        document.getElementById('totalSales').textContent = '0';
+        document.getElementById('uniqueCustomers').textContent = '0';
+        document.getElementById('latestSale').textContent = '-';
+        return;
+      }
+      
+      // Calculate total sales
+      document.getElementById('totalSales').textContent = filteredData.length;
+      
+      // Calculate unique customers
+      const uniqueCustomers = new Set(filteredData.map(sale => 
+        sale.businessEntity ? sale.businessEntity.id : 'unknown'
+      )).size;
+      document.getElementById('uniqueCustomers').textContent = uniqueCustomers;
+      
+      // Find latest sale
+      let latestDate = new Date(0);
+      let latestSaleStr = '-';
+      
+      filteredData.forEach(sale => {
+        if (sale.documentDate) {
+          const saleDate = new Date(sale.documentDate);
+          if (saleDate > latestDate) {
+            latestDate = saleDate;
+            latestSaleStr = saleDate.toLocaleString();
+          }
+        }
+      });
+      
+      document.getElementById('latestSale').textContent = latestSaleStr;
+    }
+    
+    // Initialize summary
+    updateSummary();
+    
+    // Filter button click
+    document.getElementById('filterBtn').addEventListener('click', function() {
+      const filterValue = document.getElementById('filterInput').value.toLowerCase();
+      
+      if (!filterValue) {
+        // If filter is empty, reset to original data
+        filteredData = [...salesData];
+      } else {
+        // Apply filter to nested data structure
+        filteredData = salesData.filter(sale => {
+          // Check sale ID
+          if (sale.id && sale.id.toString().toLowerCase().includes(filterValue)) {
+            return true;
+          }
+          
+          // Check document number
+          if (sale.documentNumber && sale.documentNumber.toString().toLowerCase().includes(filterValue)) {
+            return true;
+          }
+          
+          // Check business entity properties
+          if (sale.businessEntity) {
+            if (sale.businessEntity.name && sale.businessEntity.name.toLowerCase().includes(filterValue)) {
+              return true;
+            }
+            if (sale.businessEntity.phone && sale.businessEntity.phone.toLowerCase().includes(filterValue)) {
+              return true;
+            }
+            if (sale.businessEntity.code && sale.businessEntity.code.toLowerCase().includes(filterValue)) {
+              return true;
+            }
+          }
+          
+          return false;
+        });
+      }
+      
+      // Rebuild table
+      renderTable();
+      
+      // Update summary
+      updateSummary();
+    });
+    
+    // Function to render the table
+    function renderTable() {
+      const tableBody = document.querySelector('#salesTable tbody');
+      tableBody.innerHTML = '';
+      
+      if (filteredData.length === 0) {
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.setAttribute('colspan', '7');
+        cell.textContent = 'No matching sales data';
+        row.appendChild(cell);
+        tableBody.appendChild(row);
+        return;
+      }
+      
+      filteredData.forEach(sale => {
+        const row = document.createElement('tr');
+        
+        // Add cells for each sale property from the BSS API format
+        row.innerHTML = `
+          <td>${sale.id || ''}</td>
+          <td>${sale.documentNumber || ''}</td>
+          <td>${sale.documentDate ? new Date(sale.documentDate).toLocaleString() : ''}</td>
+          <td>${sale.businessEntity ? sale.businessEntity.name : ''}</td>
+          <td>${sale.businessEntity ? sale.businessEntity.phone : ''}</td>
+          <td>${sale.businessEntity ? sale.businessEntity.code : ''}</td>
+          <td>
+            <button class="btn btn-sm btn-info view-details-btn" data-id="${sale.id}">
+              <i class="fas fa-eye mr-1"></i> Details
+            </button>
+          </td>
+        `;
+        
+        tableBody.appendChild(row);
+      });
+      
+      // Add event listeners to the new buttons
+      document.querySelectorAll('.view-details-btn').forEach(btn => {
+        btn.addEventListener('click', showSaleDetails);
+      });
+    }
+    
+    // Function to show sale details in modal
+    function showSaleDetails(e) {
+      const saleId = e.currentTarget.getAttribute('data-id');
+      const sale = salesData.find(s => s.id.toString() === saleId);
+      
+      if (sale) {
+        // Format JSON with syntax highlighting
+        const formattedJson = formatJson(sale);
+        document.getElementById('jsonDetails').innerHTML = formattedJson;
+        
+        // Show the modal manually
+        const modal = document.getElementById('saleDetailsModal');
+        modal.style.display = 'block';
+        modal.classList.add('show');
+        document.body.classList.add('modal-open');
+        
+        // Add backdrop
+        const backdrop = document.createElement('div');
+        backdrop.className = 'modal-backdrop fade show';
+        document.body.appendChild(backdrop);
+      }
+    }
+    
+    // Function to close modal
+    function closeModal() {
+      const modal = document.getElementById('saleDetailsModal');
+      modal.style.display = 'none';
+      modal.classList.remove('show');
+      document.body.classList.remove('modal-open');
+      
+      // Remove backdrop
+      const backdrop = document.querySelector('.modal-backdrop');
+      if (backdrop) {
+        backdrop.remove();
+      }
+    }
+    
+    // Add event listeners for close buttons
+    document.getElementById('modalCloseBtn').addEventListener('click', closeModal);
+    document.getElementById('modalCloseX').addEventListener('click', closeModal);
+    
+    // Close modal on escape key
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        closeModal();
+      }
+    });
+    
+    // Close modal when clicking outside
+    window.addEventListener('click', function(e) {
+      const modal = document.getElementById('saleDetailsModal');
+      if (e.target === modal) {
+        closeModal();
+      }
+    });
+    
+    // Function to format JSON with syntax highlighting
+    function formatJson(data) {
+      const json = JSON.stringify(data, null, 2);
+      return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+        let cls = 'json-number';
+        if (/^"/.test(match)) {
+          if (/:$/.test(match)) {
+            cls = 'json-key';
+          } else {
+            cls = 'json-string';
+          }
+        } else if (/true|false/.test(match)) {
+          cls = 'json-boolean';
+        } else if (/null/.test(match)) {
+          cls = 'json-null';
+        }
+        return '<span class="' + cls + '">' + match + '</span>';
+      });
+    }
+    
+    // Initialize the table
+    renderTable();
+    
+    // Add event listeners to view details buttons
+    document.querySelectorAll('.view-details-btn').forEach(btn => {
+      btn.addEventListener('click', showSaleDetails);
+    });
+    
+    // Export to JSON
+    document.getElementById('exportJsonBtn').addEventListener('click', function() {
+      if (filteredData.length === 0) {
+        alert('No data to export');
+        return;
+      }
+      
+      // Create a nicely formatted JSON file with proper indentation
+      const jsonData = JSON.stringify(filteredData, null, 2);
+      
+      // Create download link
+      const blob = new Blob([jsonData], { type: 'application/json;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'sales_export.json');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    });
+    
+    // Delete import
+    document.getElementById('deleteBtn').addEventListener('click', async function() {
+      const importId = this.getAttribute('data-id');
+      
+      if (confirm('Are you sure you want to delete this import? This action cannot be undone.')) {
+        try {
+          const response = await fetch(`/sales/delete/${importId}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            }
+          });
+          
+          if (!response.ok) {
+            throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+          }
+          
+          // Try to parse the response as JSON
+          try {
+            const data = await response.json();
+            
+            if (data.success) {
+              // Redirect to sales page
+              window.location.href = '/sales';
+            } else {
+              throw new Error(data.message || 'Unknown error occurred');
+            }
+          } catch (jsonError) {
+            // If we can't parse JSON, use the response text
+            const text = await response.text();
+            console.error('Error parsing JSON response:', text);
+            throw new Error('Could not parse server response');
+          }
+        } catch (error) {
+          console.error('Error deleting import:', error);
+          const errorDiv = document.createElement('div');
+          errorDiv.className = 'alert alert-danger alert-dismissible fade show mt-3';
+          errorDiv.innerHTML = `
+            <strong>Error!</strong> ${error.message}
+            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          `;
+          document.querySelector('.sales-view-container').prepend(errorDiv);
+        }
+      }
+    });

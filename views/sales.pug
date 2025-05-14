@@ -1,0 +1,505 @@
+extends layout
+
+block styles
+  style.
+    .sales-container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    
+    .card {
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .sales-controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    
+    .status-badge {
+      padding: 5px 10px;
+      border-radius: 12px;
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+    
+    .status-pending {
+      background-color: #ffeeba;
+      color: #856404;
+    }
+    
+    .status-completed {
+      background-color: #d4edda;
+      color: #155724;
+    }
+    
+    .status-failed {
+      background-color: #f8d7da;
+      color: #721c24;
+    }
+    
+    .form-group {
+      margin-bottom: 15px;
+    }
+    
+    .form-group label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 500;
+    }
+    
+    .fetch-progress-container {
+      display: none;
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 5px;
+      background-color: #f8f9fa;
+    }
+    
+    .progress {
+      height: 20px;
+      margin-top: 10px;
+    }
+    
+    #authForm {
+      display: none;
+    }
+
+block content
+  .page-header
+    h1 Sales Data
+    p.text-muted Auto-synced sales data from the BSS posplus system
+  
+  .sales-container
+    .card
+      .card-header
+        h4 Auto Sync Status
+      .card-body
+        p.card-text Sales data is automatically synchronized from the BSS system every 2 minutes.
+        p
+          strong Last sync: 
+          if recentImports && recentImports.length > 0
+            | #{new Date(recentImports[0].importDate).toLocaleString()}
+          else
+            | No syncs recorded yet
+        if syncInfo && syncInfo.lastSyncTime
+          p
+            strong Last check for new sales: 
+            | #{new Date(syncInfo.lastSyncTime).toLocaleString()}
+          if syncInfo.lastNewSalesCount > 0
+            p.text-success
+              i.fas.fa-check-circle.mr-1
+              | Found #{syncInfo.lastNewSalesCount} new sales in the last check
+          else
+            p.text-muted
+              i.fas.fa-info-circle.mr-1
+              | No new sales in the last check
+        p
+          strong Total sales synced: 
+          span= recentImports.reduce((total, imp) => total + (imp.recordsImported || 0), 0)
+        p.text-muted Only new sales will be imported to avoid duplicates
+    
+    .card
+      .card-header
+        h4 Synced Sales Data
+      .card-body
+        if recentImports && recentImports.length > 0
+          .table-responsive
+            table.table.table-striped
+              thead
+                tr
+                  th Date Range
+                  th Import Date
+                  th Status
+                  th Records
+                  th Actions
+              tbody
+                each importItem in recentImports
+                  tr
+                    td
+                      if importItem.parameters
+                        | #{new Date(importItem.parameters.startDate).toLocaleDateString()} - #{new Date(importItem.parameters.endDate).toLocaleDateString()}
+                      else
+                        | N/A
+                    td= new Date(importItem.importDate).toLocaleString()
+                    td
+                      span(class=`status-badge status-${importItem.status}`)= importItem.status
+                    td= importItem.recordsImported || '0'
+                    td
+                      .btn-group
+                        if importItem.status === 'completed'
+                          a.btn.btn-sm.btn-primary.mr-1(href=`/sales/view/${importItem.id}` title="View Sales Data")
+                            i.fas.fa-eye
+                        button.btn.btn-sm.btn-danger.delete-btn(data-id=importItem.id title="Delete Import")
+                          i.fas.fa-trash
+          
+          .d-flex.justify-content-between.align-items-center.mt-3
+            #showing-entries.text-muted.small Showing 1-#{Math.min(recentImports.length, 10)} of #{recentImports.length} entries
+            #pagination.pagination-container
+              button.btn.btn-sm.btn-outline-primary.mr-1#prev-page(disabled) Previous
+              span.mx-2.small.text-muted#page-info Page 1 of 1
+              button.btn.btn-sm.btn-outline-primary#next-page(disabled) Next
+        else
+          p.text-muted No imports found. Auto-sync will run hourly.
+
+block scripts
+  script.
+    // Pagination logic
+    let currentPage = 1;
+    const itemsPerPage = 10;
+    let allImports = [];
+    
+    // Initialize with the full dataset
+    allImports = !{JSON.stringify(recentImports || [])}.map(item => {
+      return {
+        id: item.id,
+        parameters: item.parameters,
+        importDate: item.importDate,
+        status: item.status,
+        recordsImported: item.recordsImported || 0
+      };
+    });
+    
+    const totalPages = Math.ceil(allImports.length / itemsPerPage);
+    
+    // Update pagination display
+    function updatePagination() {
+      const startIdx = (currentPage - 1) * itemsPerPage + 1;
+      const endIdx = Math.min(currentPage * itemsPerPage, allImports.length);
+      
+      document.getElementById('showing-entries').textContent = 
+        `Showing ${startIdx}-${endIdx} of ${allImports.length} entries`;
+      
+      document.getElementById('page-info').textContent = 
+        `Page ${currentPage} of ${totalPages}`;
+      
+      document.getElementById('prev-page').disabled = (currentPage === 1);
+      document.getElementById('next-page').disabled = (currentPage === totalPages || totalPages === 0);
+      
+      renderTable();
+    }
+    
+    // Render table with current page data
+    function renderTable() {
+      const tableBody = document.querySelector('table tbody');
+      tableBody.innerHTML = '';
+      
+      const startIdx = (currentPage - 1) * itemsPerPage;
+      const endIdx = Math.min(startIdx + itemsPerPage, allImports.length);
+      const currentPageData = allImports.slice(startIdx, endIdx);
+      
+      currentPageData.forEach(importItem => {
+        const row = document.createElement('tr');
+        
+        // Date range cell
+        const dateRangeCell = document.createElement('td');
+        if (importItem.parameters) {
+          const params = typeof importItem.parameters === 'string' 
+            ? JSON.parse(importItem.parameters) 
+            : importItem.parameters;
+          
+          const startDate = new Date(params.startDate).toLocaleDateString();
+          const endDate = new Date(params.endDate).toLocaleDateString();
+          dateRangeCell.textContent = `${startDate} - ${endDate}`;
+        } else {
+          dateRangeCell.textContent = 'N/A';
+        }
+        row.appendChild(dateRangeCell);
+        
+        // Import date cell
+        const importDateCell = document.createElement('td');
+        importDateCell.textContent = new Date(importItem.importDate).toLocaleString();
+        row.appendChild(importDateCell);
+        
+        // Status cell
+        const statusCell = document.createElement('td');
+        const statusSpan = document.createElement('span');
+        statusSpan.className = `status-badge status-${importItem.status}`;
+        statusSpan.textContent = importItem.status;
+        statusCell.appendChild(statusSpan);
+        row.appendChild(statusCell);
+        
+        // Records cell
+        const recordsCell = document.createElement('td');
+        recordsCell.textContent = importItem.recordsImported || '0';
+        row.appendChild(recordsCell);
+        
+        // Actions cell
+        const actionsCell = document.createElement('td');
+        const btnGroup = document.createElement('div');
+        btnGroup.className = 'btn-group';
+        
+        if (importItem.status === 'completed') {
+          const viewBtn = document.createElement('a');
+          viewBtn.className = 'btn btn-sm btn-primary mr-1';
+          viewBtn.href = `/sales/view/${importItem.id}`;
+          viewBtn.title = 'View Sales Data';
+          viewBtn.innerHTML = '<i class="fas fa-eye"></i>';
+          btnGroup.appendChild(viewBtn);
+        }
+        
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'btn btn-sm btn-danger delete-btn';
+        deleteBtn.setAttribute('data-id', importItem.id);
+        deleteBtn.title = 'Delete Import';
+        deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
+        deleteBtn.addEventListener('click', handleDelete);
+        btnGroup.appendChild(deleteBtn);
+        
+        actionsCell.appendChild(btnGroup);
+        row.appendChild(actionsCell);
+        
+        tableBody.appendChild(row);
+      });
+    }
+    
+    // Handle previous/next page
+    document.getElementById('prev-page').addEventListener('click', function() {
+      if (currentPage > 1) {
+        currentPage--;
+        updatePagination();
+      }
+    });
+    
+    document.getElementById('next-page').addEventListener('click', function() {
+      if (currentPage < totalPages) {
+        currentPage++;
+        updatePagination();
+      }
+    });
+    
+    // Initialize pagination
+    updatePagination();
+    
+    // Delete handler function
+    async function handleDelete() {
+      const importId = this.getAttribute('data-id');
+      if (!importId) return;
+      
+      if (confirm('Are you sure you want to delete this import? This action cannot be undone.')) {
+        try {
+          const response = await fetch(`/sales/delete/${importId}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            }
+          });
+          
+          if (!response.ok) {
+            throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+          }
+          
+          // Try to parse the response as JSON
+          try {
+            const data = await response.json();
+            
+            if (data.success) {
+              // Remove from our data array
+              allImports = allImports.filter(item => item.id !== parseInt(importId));
+              
+              // Recalculate pagination
+              const newTotalPages = Math.ceil(allImports.length / itemsPerPage);
+              if (currentPage > newTotalPages && newTotalPages > 0) {
+                currentPage = newTotalPages;
+              }
+              
+              // Update the UI
+              updatePagination();
+              
+              // Show feedback
+              const alertDiv = document.createElement('div');
+              alertDiv.className = 'alert alert-success alert-dismissible fade show';
+              alertDiv.role = 'alert';
+              alertDiv.innerHTML = `
+                <strong>Success!</strong> The import was deleted.
+                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                  <span aria-hidden="true">&times;</span>
+                </button>
+              `;
+              document.querySelector('.sales-container').prepend(alertDiv);
+              
+              // Auto dismiss after 3 seconds
+              setTimeout(() => {
+                alertDiv.classList.remove('show');
+                setTimeout(() => alertDiv.remove(), 150);
+              }, 3000);
+              
+            } else {
+              throw new Error(data.message || 'Unknown error occurred');
+            }
+          } catch (jsonError) {
+            // If we can't parse JSON, use the response text
+            console.error('Error parsing JSON response:', jsonError);
+            const text = await response.text();
+            console.error('Response text:', text);
+            throw new Error('Could not parse server response');
+          }
+        } catch (error) {
+          console.error('Error deleting import:', error);
+          
+          // Show error alert
+          const alertDiv = document.createElement('div');
+          alertDiv.className = 'alert alert-danger alert-dismissible fade show';
+          alertDiv.role = 'alert';
+          alertDiv.innerHTML = `
+            <strong>Error!</strong> ${error.message}
+            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          `;
+          document.querySelector('.sales-container').prepend(alertDiv);
+          
+          // Auto dismiss after 5 seconds
+          setTimeout(() => {
+            alertDiv.classList.remove('show');
+            setTimeout(() => alertDiv.remove(), 150);
+          }, 5000);
+        }
+      }
+    }
+    
+    // Apply delete handler to existing buttons
+    document.querySelectorAll('.delete-btn').forEach(button => {
+      button.addEventListener('click', handleDelete);
+    });
+    
+    // Auto-refresh feature with toggle
+    const REFRESH_INTERVAL = 60; // seconds
+    let autoRefreshEnabled = localStorage.getItem('salesAutoRefreshEnabled') !== 'false'; // Default to enabled
+    
+    // Track when the next refresh should happen
+    let nextRefreshTime = localStorage.getItem('salesNextRefreshTime');
+    let secondsLeft = REFRESH_INTERVAL;
+    
+    // Calculate time remaining based on stored next refresh time
+    if (nextRefreshTime) {
+      const now = Date.now();
+      const timeRemaining = parseInt(nextRefreshTime) - now;
+      
+      if (timeRemaining > 0) {
+        // Still time left, convert to seconds
+        secondsLeft = Math.ceil(timeRemaining / 1000);
+      } else {
+        // Time expired, refresh now but prevent reload loops
+        if (autoRefreshEnabled) {
+          // Set a flag to prevent multiple refreshes in a short time period
+          const lastRefreshTime = localStorage.getItem('salesLastRefresh');
+          const currentTime = Date.now();
+          
+          // Only refresh if it's been at least 5 seconds since the last refresh
+          if (!lastRefreshTime || (currentTime - parseInt(lastRefreshTime)) > 5000) {
+            localStorage.setItem('salesLastRefresh', currentTime);
+            localStorage.setItem('salesNextRefreshTime', currentTime + (REFRESH_INTERVAL * 1000));
+            window.location.reload();
+          } else {
+            // Reset the timer if we're in a potential loop
+            console.log('Prevented rapid reload - resetting timer');
+            secondsLeft = REFRESH_INTERVAL;
+            nextRefreshTime = Date.now() + (REFRESH_INTERVAL * 1000);
+            localStorage.setItem('salesNextRefreshTime', nextRefreshTime);
+          }
+        } else {
+          // If auto-refresh was disabled, reset the timer
+          secondsLeft = REFRESH_INTERVAL;
+        }
+      }
+    } else {
+      // No stored time, set a new refresh target
+      nextRefreshTime = Date.now() + (REFRESH_INTERVAL * 1000);
+      localStorage.setItem('salesNextRefreshTime', nextRefreshTime);
+    }
+    
+    // Create toggle control
+    const refreshControlDiv = document.createElement('div');
+    refreshControlDiv.className = 'refresh-control text-center mt-3 mb-2';
+    refreshControlDiv.innerHTML = `
+      <div class="d-flex justify-content-center align-items-center">
+        <span class="mr-2">Auto-refresh:</span>
+        <div class="custom-control custom-switch">
+          <input type="checkbox" class="custom-control-input" id="autoRefreshToggle" ${autoRefreshEnabled ? 'checked' : ''}>
+          <label class="custom-control-label" for="autoRefreshToggle"></label>
+        </div>
+      </div>
+    `;
+    document.querySelector('.sales-container').appendChild(refreshControlDiv);
+    
+    // Add toggle event listener
+    document.getElementById('autoRefreshToggle').addEventListener('change', function() {
+      autoRefreshEnabled = this.checked;
+      localStorage.setItem('salesAutoRefreshEnabled', autoRefreshEnabled);
+      
+      if (autoRefreshEnabled) {
+        // Reset the next refresh time when enabling
+        nextRefreshTime = Date.now() + (REFRESH_INTERVAL * 1000);
+        localStorage.setItem('salesNextRefreshTime', nextRefreshTime);
+        secondsLeft = REFRESH_INTERVAL;
+        startRefreshTimer();
+      } else {
+        clearTimeout(window.refreshTimeout);
+        countdownElement.textContent = 'Auto-refresh is disabled';
+      }
+    });
+    
+    // Display last refresh time
+    const refreshTimeElement = document.createElement('div');
+    refreshTimeElement.className = 'text-muted text-center mt-1 small';
+    refreshTimeElement.innerHTML = `<i class="fas fa-sync-alt mr-1"></i> Last updated: ${new Date().toLocaleTimeString()}`;
+    document.querySelector('.sales-container').appendChild(refreshTimeElement);
+    
+    // Display countdown to next refresh
+    const countdownElement = document.createElement('div');
+    countdownElement.className = 'text-center small';
+    document.querySelector('.sales-container').appendChild(countdownElement);
+    
+    // Refresh timer function
+    function startRefreshTimer() {
+      updateCountdown();
+      
+      function updateCountdown() {
+        if (autoRefreshEnabled) {
+          countdownElement.textContent = `Auto-refreshing in ${secondsLeft} seconds`;
+          
+          if (secondsLeft <= 0) {
+            // Prevent multiple reloads by checking last refresh time
+            const lastRefreshTime = localStorage.getItem('salesLastRefresh');
+            const currentTime = Date.now();
+            
+            if (!lastRefreshTime || (currentTime - parseInt(lastRefreshTime)) > 5000) {
+              // Record this refresh and set next refresh time
+              localStorage.setItem('salesLastRefresh', currentTime);
+              localStorage.setItem('salesNextRefreshTime', currentTime + (REFRESH_INTERVAL * 1000));
+              window.location.reload();
+            } else {
+              // Reset timer to prevent loop
+              console.log('Prevented rapid reload in countdown - resetting timer');
+              secondsLeft = REFRESH_INTERVAL;
+              localStorage.setItem('salesNextRefreshTime', Date.now() + (REFRESH_INTERVAL * 1000));
+              window.refreshTimeout = setTimeout(updateCountdown, 1000);
+            }
+            return;
+          }
+          
+          // Update seconds left and store next refresh time correctly
+          secondsLeft--;
+          // Only update localStorage once every 5 seconds to reduce writes
+          if (secondsLeft % 5 === 0 || secondsLeft < 5) {
+            localStorage.setItem('salesNextRefreshTime', Date.now() + (secondsLeft * 1000));
+          }
+          window.refreshTimeout = setTimeout(updateCountdown, 1000);
+        } else {
+          countdownElement.textContent = 'Auto-refresh is disabled';
+        }
+      }
+    }
+    
+    // Start the timer if auto-refresh is enabled
+    if (autoRefreshEnabled) {
+      startRefreshTimer();
+    } else {
+      countdownElement.textContent = 'Auto-refresh is disabled';
+    }

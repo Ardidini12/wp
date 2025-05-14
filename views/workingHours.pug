@@ -1,0 +1,262 @@
+extends layout
+
+block styles
+  style.
+    .timezone-select {
+      width: 100%;
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px solid #ced4da;
+    }
+    
+    .working-hours-container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    
+    .time-display {
+      font-size: 2rem;
+      font-weight: bold;
+      margin: 15px 0;
+    }
+    
+    #workingStatus {
+      padding: 8px;
+      border-radius: 4px;
+      margin-top: 10px;
+    }
+    
+    .text-success {
+      background-color: rgba(40, 167, 69, 0.1);
+      color: #28a745;
+    }
+    
+    .text-danger {
+      background-color: rgba(220, 53, 69, 0.1);
+      color: #dc3545;
+    }
+    
+    .text-warning {
+      background-color: rgba(255, 193, 7, 0.1);
+      color: #ffc107;
+    }
+    
+    .hours-timeline {
+      height: 40px;
+      background-color: #f8f9fa;
+      border-radius: 20px;
+      position: relative;
+      margin: 20px 0;
+      overflow: hidden;
+    }
+    
+    .working-period {
+      position: absolute;
+      height: 100%;
+      background-color: rgba(40, 167, 69, 0.3);
+      border: 1px solid #28a745;
+    }
+    
+    .current-time-marker {
+      position: absolute;
+      width: 4px;
+      height: 100%;
+      background-color: #dc3545;
+      z-index: 10;
+    }
+    
+    .time-label {
+      position: absolute;
+      font-size: 0.75rem;
+      color: #6c757d;
+      transform: translateX(-50%);
+    }
+    
+    .time-label.start {
+      left: 0;
+      transform: translateX(0);
+    }
+    
+    .time-label.end {
+      right: 0;
+      transform: translateX(0);
+    }
+
+block content
+  .page-header
+    h1 Working Hours Settings
+    p.text-muted Set the hours when messages can be sent
+  
+  .working-hours-container
+    .alert.alert-info.mb-4
+      i.fas.fa-info-circle.mr-2
+      | Messages will only be sent during working hours. Messages scheduled outside these hours will wait until the next working period.
+    
+    form(action="/settings/working-hours" method="post")
+      .form-group
+        label(for="timezone") Timezone
+        select.form-control.timezone-select#timezone(name="timezone")
+          option(value="Africa/Cairo" selected=workingHours && workingHours.timezone === "Africa/Cairo") Cairo
+          option(value="America/New_York" selected=workingHours && workingHours.timezone === "America/New_York") New York
+          option(value="America/Chicago" selected=workingHours && workingHours.timezone === "America/Chicago") Chicago
+          option(value="America/Denver" selected=workingHours && workingHours.timezone === "America/Denver") Denver
+          option(value="America/Los_Angeles" selected=workingHours && workingHours.timezone === "America/Los_Angeles") Los Angeles
+          option(value="America/Toronto" selected=workingHours && workingHours.timezone === "America/Toronto") Toronto
+          option(value="Asia/Dubai" selected=workingHours && workingHours.timezone === "Asia/Dubai") Dubai
+          option(value="Asia/Tokyo" selected=workingHours && workingHours.timezone === "Asia/Tokyo") Tokyo
+          option(value="Asia/Singapore" selected=workingHours && workingHours.timezone === "Asia/Singapore") Singapore
+          option(value="Australia/Sydney" selected=workingHours && workingHours.timezone === "Australia/Sydney") Sydney
+          option(value="Europe/Berlin" selected=workingHours && workingHours.timezone === "Europe/Berlin") Berlin
+          option(value="Europe/London" selected=workingHours && workingHours.timezone === "Europe/London") London
+          option(value="Europe/Madrid" selected=workingHours && workingHours.timezone === "Europe/Madrid") Madrid
+          option(value="Europe/Moscow" selected=workingHours && workingHours.timezone === "Europe/Moscow") Moscow
+          option(value="Europe/Paris" selected=workingHours && workingHours.timezone === "Europe/Paris") Paris
+          option(value="Europe/Rome" selected=workingHours && workingHours.timezone === "Europe/Rome") Rome 
+          option(value="Europe/Tirane" selected=workingHours && (workingHours.timezone === "Europe/Tirane" || !workingHours.timezone)) Tirana (Default)
+        small.form-text.text-muted Select the timezone for your working hours
+      
+      .row
+        .col-md-6
+          .form-group
+            label(for="openTime") Opening Time
+            input.form-control(type="time" id="openTime" name="openTime" value=workingHours ? workingHours.openTime : "10:00" required)
+        
+        .col-md-6
+          .form-group
+            label(for="closeTime") Closing Time
+            input.form-control(type="time" id="closeTime" name="closeTime" value=workingHours ? workingHours.closeTime : "20:00" required)
+      
+      .form-group.mb-4
+        .form-check
+          input.form-check-input(type="checkbox" id="isActive" name="isActive" value="true" checked=workingHours && workingHours.isActive)
+          label.form-check-label(for="isActive") Enable working hours restrictions
+        small.form-text.text-muted If disabled, messages will be sent at any time
+      
+      .current-time.mb-4
+        h4 Current Time in 
+          span#selectedTimezone #{workingHours ? workingHours.timezone.split('/')[1].replace('_', ' ') : "Tirana"}:
+        .time-display#currentTime
+        
+        .hours-timeline#hoursTimeline
+          .working-period#workingPeriod
+          .current-time-marker#currentTimeMarker
+          .time-label.start 00:00
+          .time-label.middle 12:00
+          .time-label.end 23:59
+        
+        p#workingStatus
+      
+      button.btn.btn-primary(type="submit") Save Settings
+
+block scripts
+  script.
+    // Update timezone display when selector changes
+    document.getElementById('timezone').addEventListener('change', function() {
+      const timezone = this.value;
+      const cityName = timezone.split('/')[1].replace('_', ' ');
+      document.getElementById('selectedTimezone').textContent = cityName;
+      updateTime();
+    });
+    
+    function updateTime() {
+      const timezoneSelect = document.getElementById('timezone');
+      const selectedTimezone = timezoneSelect.value;
+      
+      const options = { 
+        timeZone: selectedTimezone,
+        hour: '2-digit', 
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      };
+      
+      const now = new Date();
+      document.getElementById('currentTime').textContent = now.toLocaleTimeString('en-US', options);
+      
+      // Check if currently within working hours
+      const currentHour = parseInt(now.toLocaleTimeString('en-US', { timeZone: selectedTimezone, hour: '2-digit', hour12: false }));
+      const currentMinute = parseInt(now.toLocaleTimeString('en-US', { timeZone: selectedTimezone, minute: '2-digit' }));
+      
+      const openTimeInput = document.getElementById('openTime').value;
+      const closeTimeInput = document.getElementById('closeTime').value;
+      
+      const openTime = openTimeInput.split(':');
+      const closeTime = closeTimeInput.split(':');
+      
+      const openHour = parseInt(openTime[0]);
+      const openMinute = parseInt(openTime[1]);
+      const closeHour = parseInt(closeTime[0]);
+      const closeMinute = parseInt(closeTime[1]);
+      
+      // Format the time ranges for display
+      const format12Hour = (hour, minute) => {
+        const period = hour < 12 ? 'AM' : 'PM';
+        const hour12 = hour % 12 || 12; // Convert 0 to 12 for 12 AM
+        return `${hour12}:${minute.toString().padStart(2, '0')} ${period}`;
+      };
+      
+      const openTimeFormatted = format12Hour(openHour, openMinute);
+      const closeTimeFormatted = format12Hour(closeHour, closeMinute);
+      
+      const currentTimeValue = currentHour * 60 + currentMinute;
+      const openTimeValue = openHour * 60 + openMinute;
+      const closeTimeValue = closeHour * 60 + closeMinute;
+      
+      // Update timeline visualization
+      const timelineEl = document.getElementById('hoursTimeline');
+      const workingPeriodEl = document.getElementById('workingPeriod');
+      const currentTimeMarkerEl = document.getElementById('currentTimeMarker');
+      
+      // Total minutes in a day
+      const totalMinutesInDay = 24 * 60;
+      
+      // Position the working period on the timeline
+      const openPercent = (openTimeValue / totalMinutesInDay) * 100;
+      const closePercent = (closeTimeValue / totalMinutesInDay) * 100;
+      const periodWidth = closePercent - openPercent;
+      
+      workingPeriodEl.style.left = `${openPercent}%`;
+      workingPeriodEl.style.width = `${periodWidth}%`;
+      
+      // Position the current time marker
+      const currentTimePercent = (currentTimeValue / totalMinutesInDay) * 100;
+      currentTimeMarkerEl.style.left = `${currentTimePercent}%`;
+      
+      // Add time labels to the working period
+      workingPeriodEl.setAttribute('title', `Working Hours: ${openTimeFormatted} - ${closeTimeFormatted}`);
+      
+      // Add a middle label inside the timeline
+      const middleLabelEl = document.querySelector('.time-label.middle');
+      middleLabelEl.style.left = '50%';
+      
+      const isActive = document.getElementById('isActive').checked;
+      const statusElem = document.getElementById('workingStatus');
+      
+      // Update the color of the working period based on restriction status
+      workingPeriodEl.style.backgroundColor = isActive ? 'rgba(40, 167, 69, 0.3)' : 'rgba(255, 193, 7, 0.2)';
+      workingPeriodEl.style.borderColor = isActive ? '#28a745' : '#ffc107';
+      
+      if (!isActive) {
+        statusElem.textContent = 'Working hours restrictions are disabled. Messages will be sent at any time.';
+        statusElem.className = 'text-warning';
+      } else {
+        // Working hours are active
+        if (currentTimeValue >= openTimeValue && currentTimeValue <= closeTimeValue) {
+          statusElem.textContent = `Currently within working hours (${openTimeFormatted} - ${closeTimeFormatted}). Messages will be sent immediately.`;
+          statusElem.className = 'text-success';
+        } else {
+          statusElem.textContent = `Outside working hours (${openTimeFormatted} - ${closeTimeFormatted}). Messages will be queued until ${currentTimeValue < openTimeValue ? 'today' : 'tomorrow'} at ${openTimeFormatted}.`;
+          statusElem.className = 'text-danger';
+        }
+      }
+    }
+    
+    // Update when time inputs change
+    document.getElementById('openTime').addEventListener('change', updateTime);
+    document.getElementById('closeTime').addEventListener('change', updateTime);
+    document.getElementById('isActive').addEventListener('change', updateTime);
+    
+    // Update time every second
+    setInterval(updateTime, 1000);
+    updateTime(); 

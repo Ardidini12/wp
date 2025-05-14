@@ -1,0 +1,222 @@
+extends layout
+
+block styles
+  link(rel='stylesheet', href='/stylesheets/contacts.css')
+  style.
+    .progress-container {
+      margin: 30px 0;
+    }
+    .progress {
+      height: 30px;
+      border-radius: 4px;
+    }
+    .progress-bar {
+      transition: width 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 500;
+    }
+    .import-status {
+      margin: 20px 0;
+      padding: 15px;
+      border-radius: 8px;
+      background: #f5f8fa;
+    }
+    .import-details {
+      margin-top: 20px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .detail-card {
+      flex: 1;
+      margin: 0 10px;
+      padding: 15px;
+      border-radius: 8px;
+      background: white;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      text-align: center;
+    }
+    .detail-card h3 {
+      margin: 0 0 10px 0;
+      font-size: 1.1rem;
+      color: #7f8c8d;
+    }
+    .detail-value {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #2c3e50;
+    }
+    .detail-card.success .detail-value {
+      color: #27ae60;
+    }
+    .detail-card.pending .detail-value {
+      color: #f39c12;
+    }
+    .return-btn {
+      margin-top: 20px;
+      display: none;
+    }
+
+block content
+  .page-header
+    h1 Contact Import
+    .page-actions
+      a.btn.btn-outline-primary(href="/contacts")
+        i.fas.fa-arrow-left.mr-1
+        | Back to Contacts
+
+  .container
+    .card
+      .card-header 
+        h2 Importing Contacts
+        p.text-muted Importing #{totalContacts.toLocaleString()} contacts from #{fileName}
+      
+      .card-body
+        .import-status#importStatus
+          p.lead
+            i.fas.fa-spinner.fa-spin.mr-2
+            | Starting import process...
+        
+        .progress-container
+          .progress
+            .progress-bar.progress-bar-striped.progress-bar-animated.bg-primary#progressBar(role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100") 0%
+        
+        .import-details
+          .detail-card.total
+            h3 Total Contacts
+            .detail-value#totalContacts #{totalContacts.toLocaleString()}
+          
+          .detail-card.processed.pending
+            h3 Processed
+            .detail-value#processedContacts 0
+          
+          .detail-card.success
+            h3 Success Rate
+            .detail-value#successRate 0%
+        
+        .text-center
+          button.btn.btn-primary#startImportBtn(type="button") Start Import
+          a.btn.btn-success.return-btn#returnBtn(href="/contacts")
+            i.fas.fa-check-circle.mr-1
+            | Return to Contacts
+
+block scripts
+  script.
+    const startImportBtn = document.getElementById('startImportBtn');
+    const progressBar = document.getElementById('progressBar');
+    const importStatus = document.getElementById('importStatus');
+    const processedContacts = document.getElementById('processedContacts');
+    const successRate = document.getElementById('successRate');
+    const returnBtn = document.getElementById('returnBtn');
+    
+    // Store initial count to calculate progress
+    let initialCount = 0;
+    const totalCount = #{totalContacts};
+    
+    // Function to get current contact count from DB
+    async function getContactCount() {
+      try {
+        const response = await fetch('/contacts/import-status');
+        const data = await response.json();
+        return data.count;
+      } catch (error) {
+        console.error('Error getting count:', error);
+        return 0;
+      }
+    }
+    
+    // Function to start import process
+    async function startImport() {
+      try {
+        // Get initial count before import
+        initialCount = await getContactCount();
+        
+        // Disable button and update status
+        startImportBtn.disabled = true;
+        startImportBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Import Started...';
+        importStatus.innerHTML = `
+          <p class="lead">
+            <i class="fas fa-cog fa-spin mr-2"></i>
+            Import in progress. This might take a while for large files.
+          </p>
+          <p class="text-muted">Please keep this page open until the import is complete.</p>
+        `;
+        
+        // Start the import process
+        const response = await fetch('/contacts/start-import', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          // Start progress monitoring
+          checkProgress();
+        } else {
+          importStatus.innerHTML = `
+            <div class="alert alert-danger">
+              <i class="fas fa-exclamation-triangle mr-2"></i>
+              Error starting import: ${result.error || 'Unknown error'}
+            </div>
+          `;
+          startImportBtn.disabled = false;
+          startImportBtn.textContent = 'Retry Import';
+        }
+      } catch (error) {
+        console.error('Error starting import:', error);
+        importStatus.innerHTML = `
+          <div class="alert alert-danger">
+            <i class="fas fa-exclamation-triangle mr-2"></i>
+            Error: ${error.message || 'Failed to start import process'}
+          </div>
+        `;
+        startImportBtn.disabled = false;
+        startImportBtn.textContent = 'Retry Import';
+      }
+    }
+    
+    // Function to check progress periodically
+    async function checkProgress() {
+      try {
+        const currentCount = await getContactCount();
+        const processed = currentCount - initialCount;
+        const percent = Math.min(Math.floor((processed / totalCount) * 100), 100);
+        
+        // Update UI elements
+        progressBar.style.width = `${percent}%`;
+        progressBar.textContent = `${percent}%`;
+        progressBar.setAttribute('aria-valuenow', percent);
+        
+        processedContacts.textContent = processed.toLocaleString();
+        
+        // Calculate success rate
+        const rate = Math.floor((processed / Math.max(1, totalCount)) * 100);
+        successRate.textContent = `${rate}%`;
+        
+        // Check if complete
+        if (percent >= 100) {
+          importStatus.innerHTML = `
+            <div class="alert alert-success">
+              <i class="fas fa-check-circle mr-2"></i>
+              Import completed successfully! ${processed.toLocaleString()} contacts imported.
+            </div>
+          `;
+          progressBar.classList.remove('progress-bar-animated');
+          startImportBtn.style.display = 'none';
+          returnBtn.style.display = 'inline-block';
+          return;
+        }
+        
+        // If not complete, check again after delay
+        setTimeout(checkProgress, 2000);
+      } catch (error) {
+        console.error('Error checking progress:', error);
+      }
+    }
+    
+    // Event listener for start button
+    startImportBtn.addEventListener('click', startImport); 

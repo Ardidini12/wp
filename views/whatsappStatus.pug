@@ -12,10 +12,14 @@ block content
     .page-actions
       button.btn.btn-outline-primary#refreshBtn
         i.fas.fa-sync-alt.mr-1
-        | Refresh Page
-      a.btn.btn-outline-warning.ml-1#forceRefreshBtn(href="/debug/refresh-qr-code" target="_blank")
-        i.fas.fa-redo-alt.mr-1
-        | Force New QR Code
+        | Refresh Status
+      button.btn.btn-outline-danger.ml-2#clearSessionBtn
+        i.fas.fa-trash-alt.mr-1
+        | Clear Session
+      if !isConnected
+        a.btn.btn-outline-warning.ml-1#forceRefreshBtn(href="/debug/refresh-qr-code" target="_blank")
+          i.fas.fa-redo-alt.mr-1
+          | Force New QR Code
 
   .status-container(class=isConnected ? 'connected' : 'disconnected')
     if isConnected
@@ -26,6 +30,16 @@ block content
           .connected-phone
             i.fas.fa-phone.mr-1
             span Connected to: +#{qrCode.phoneNumber}
+      
+      .session-info
+        .info-item
+          i.fas.fa-clock.mr-1
+          span Last Check: 
+          span#lastCheck Loading...
+        .info-item
+          i.fas.fa-signal.mr-1
+          span Connection Status: 
+          span.badge.badge-success Active
       
       .confirmation-section
         i.fas.fa-thumbs-up.confirmation-icon
@@ -58,69 +72,97 @@ block content
 block scripts
   script.
     const refreshBtn = document.getElementById('refreshBtn');
+    const clearSessionBtn = document.getElementById('clearSessionBtn');
     const forceRefreshBtn = document.getElementById('forceRefreshBtn');
     const statusContainer = document.querySelector('.status-container');
     const statusElement = document.querySelector('.status-section');
+    const lastCheckElement = document.getElementById('lastCheck');
+    
+    // Function to update last check time
+    async function updateLastCheck() {
+      try {
+        const response = await fetch('/api/session/status');
+        const data = await response.json();
+        if (lastCheckElement) {
+          const date = new Date(data.lastCheck);
+          lastCheckElement.textContent = date.toLocaleString();
+        }
+      } catch (error) {
+        console.error('Error updating last check:', error);
+      }
+    }
+
+    // Update last check every 30 seconds if connected
+    if (#{isConnected}) {
+      updateLastCheck();
+      setInterval(updateLastCheck, 30000);
+    }
     
     refreshBtn.addEventListener('click', async function() {
-      // Add loading state
       refreshBtn.disabled = true;
       refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Refreshing...';
       
       try {
-        // Refresh the page to check for updated status
+        const response = await fetch('/api/session/status');
+        const data = await response.json();
         window.location.reload();
       } catch (error) {
         console.error('Error refreshing status:', error);
+        alert('Error refreshing status. Please try again.');
+      } finally {
         refreshBtn.disabled = false;
-        refreshBtn.innerHTML = '<i class="fas fa-sync-alt mr-1"></i> Refresh Page';
+        refreshBtn.innerHTML = '<i class="fas fa-sync-alt mr-1"></i> Refresh Status';
       }
     });
-    
-    forceRefreshBtn.addEventListener('click', async function(e) {
-      e.preventDefault();
-      
-      // Add loading state
-      forceRefreshBtn.disabled = true;
-      forceRefreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Generating...';
+
+    clearSessionBtn.addEventListener('click', async function() {
+      if (!confirm('Are you sure you want to clear the current session? This will disconnect WhatsApp and require a new QR code scan.')) {
+        return;
+      }
+
+      clearSessionBtn.disabled = true;
+      clearSessionBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Clearing...';
       
       try {
-        // Call the debug endpoint to force a new QR code
-        const response = await fetch('/debug/refresh-qr-code');
+        const response = await fetch('/api/session/clear', { method: 'POST' });
         const data = await response.json();
         
-        // Alert the user
-        alert(data.message || 'QR code refresh initiated. Please wait a few seconds and refresh this page.');
+        if (data.requiresQR) {
+          alert('Session cleared successfully. The page will refresh to show the new QR code.');
+        } else {
+          alert(data.message || 'Session cleared successfully.');
+        }
         
-        // Wait 5 seconds and then reload the page
-        setTimeout(() => {
-          window.location.reload();
-        }, 5000);
+        window.location.reload();
       } catch (error) {
-        console.error('Error forcing QR code refresh:', error);
-        alert('Error initiating QR code refresh. Please try again.');
-        forceRefreshBtn.disabled = false;
-        forceRefreshBtn.innerHTML = '<i class="fas fa-redo-alt mr-1"></i> Force New QR Code';
+        console.error('Error clearing session:', error);
+        alert('Error clearing session. Please try again.');
+      } finally {
+        clearSessionBtn.disabled = false;
+        clearSessionBtn.innerHTML = '<i class="fas fa-trash-alt mr-1"></i> Clear Session';
       }
     });
     
-    // For demo purposes - in a real app, this would come from the server
-    function updateConnectionStatus(isConnected) {
-      statusContainer.className = isConnected ? 'status-container connected' : 'status-container disconnected';
-      
-      if (isConnected) {
-        statusElement.innerHTML = `<i class="fas fa-check-circle status-icon status-connected"></i> <span>WhatsApp Connected</span>`;
-        document.querySelector('.qr-container').style.display = 'none';
-        document.querySelector('.instructions-section').style.display = 'none';
+    if (forceRefreshBtn) {
+      forceRefreshBtn.addEventListener('click', async function(e) {
+        e.preventDefault();
         
-        const confirmationSection = document.createElement('div');
-        confirmationSection.className = 'confirmation-section';
-        confirmationSection.innerHTML = `
-          <i class="fas fa-thumbs-up confirmation-icon"></i>
-          <p class="text-success text-center">You can now send WhatsApp messages</p>
-        `;
-        statusContainer.appendChild(confirmationSection);
-      }
+        forceRefreshBtn.disabled = true;
+        forceRefreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Generating...';
+        
+        try {
+          const response = await fetch('/debug/refresh-qr-code');
+          const data = await response.json();
+          alert(data.message || 'QR code refresh initiated. Please wait a few seconds and refresh this page.');
+          setTimeout(() => window.location.reload(), 5000);
+        } catch (error) {
+          console.error('Error forcing QR code refresh:', error);
+          alert('Error initiating QR code refresh. Please try again.');
+        } finally {
+          forceRefreshBtn.disabled = false;
+          forceRefreshBtn.innerHTML = '<i class="fas fa-redo-alt mr-1"></i> Force New QR Code';
+        }
+      });
     }
 
    

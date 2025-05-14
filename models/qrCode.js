@@ -11,9 +11,14 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true
     },
     status: {
-      type: DataTypes.STRING,
-      defaultValue: 'active',
-      allowNull: true
+      type: DataTypes.ENUM('disconnected', 'active', 'connected', 'error'),
+      defaultValue: 'disconnected',
+      allowNull: false
+    },
+    connected: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      allowNull: false
     },
     phoneNumber: {
       type: DataTypes.STRING,

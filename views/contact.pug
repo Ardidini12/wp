@@ -14,6 +14,32 @@ block content
       button.btn.btn-outline-primary(onclick="document.getElementById('importForm').style.display='block'")
         i.fas.fa-file-import.mr-1
         | Import
+
+  // Search Bar
+  .search-bar
+    form(action="/contacts/search" method="get")
+      .input-group
+        input.form-control(type="text" name="term" placeholder="Search contacts..." value=searchTerm)
+        .input-group-append
+          button.btn.btn-primary(type="submit")
+            i.fas.fa-search.mr-1
+            | Search
+        if searchTerm
+          .input-group-append
+            a.btn.btn-outline-secondary(href="/contacts")
+              i.fas.fa-times.mr-1
+              | Clear
+
+  // Contacts Count Display
+  if pagination
+    .contacts-count
+      p 
+        strong Total: 
+        | #{pagination.totalContacts.toLocaleString()} contacts 
+        if searchTerm
+          | matching "#{searchTerm}"
+        if pagination.totalContacts > 0
+          |  (showing #{((pagination.page - 1) * pagination.limit) + 1} to #{Math.min(pagination.page * pagination.limit, pagination.totalContacts)})
       
   // Bulk Actions Bar
   .bulk-actions-bar#bulkActionsBar
@@ -21,9 +47,12 @@ block content
       span#selectedCount 0
       |  contacts selected
     .bulk-actions
-      button.btn.btn-danger(onclick="confirmDeleteSelected()")
+      button.btn.btn-danger#deleteSelectedBtn(onclick="confirmDeleteSelected()")
         i.fas.fa-trash.mr-1
         | Delete Selected
+      button.btn.btn-secondary#cancelSelectionBtn(onclick="cancelSelection()")
+        i.fas.fa-times.mr-1
+        | Cancel
 
   // Export Buttons
   .export-buttons
@@ -76,35 +105,89 @@ block content
 
   // Contacts Table
   .contacts-table-container
-    table.contacts-table
-      thead
-        tr
-          th.checkbox-cell
-            input(type="checkbox" id="selectAll" onchange="toggleSelectAll()")
-          th Name
-          th Surname
-          th Phone Number
-          th Email
-          th Birthday
-          th Source
-          th Actions
-      tbody
-        each contact in contacts
+    if contacts.length === 0
+      .alert.alert-info.text-center
+        if searchTerm
+          i.fas.fa-search.mr-1
+          | No contacts found matching "#{searchTerm}"
+        else
+          i.fas.fa-address-book.mr-1
+          | No contacts yet. Add contacts using the buttons above.
+    else
+      table.contacts-table
+        thead
           tr
-            td.checkbox-cell
-              input(type="checkbox" name="selectedContacts" value=contact.id onchange="updateSelectedCount()")
-            td= contact.name || '--'
-            td= contact.surname || '--'
-            td= contact.phoneNumber
-            td= contact.email || '--'
-            td= contact.birthday ? new Date(contact.birthday).toLocaleDateString() : '--'
-            td= contact.source || '--'
-            td
-              .contact-actions
-                a.btn.btn-outline-primary.btn-sm(href=`/contacts/edit/${contact.id}` title="Edit")
-                  i.fas.fa-edit
-                button.btn.btn-outline-danger.btn-sm(onclick=`confirmDelete(${contact.id})` title="Delete")
-                  i.fas.fa-trash-alt
+            th.checkbox-cell
+              input(type="checkbox" id="selectAll" onchange="toggleSelectAll()")
+              span.select-all-label Select All
+            th Name
+            th Surname
+            th Phone Number
+            th Email
+            th Birthday
+            th Source
+            th Actions
+        tbody
+          each contact in contacts
+            tr
+              td.checkbox-cell
+                input(type="checkbox" name="selectedContacts" value=contact.id onchange="updateSelectedCount()")
+              td= contact.name || '--'
+              td= contact.surname || '--'
+              td= contact.phoneNumber
+              td= contact.email || '--'
+              td= contact.birthday ? new Date(contact.birthday).toLocaleDateString() : '--'
+              td= contact.source || '--'
+              td
+                .contact-actions
+                  a.btn.btn-outline-primary.btn-sm(href=`/contacts/edit/${contact.id}` title="Edit")
+                    i.fas.fa-edit
+                  button.btn.btn-outline-danger.btn-sm(onclick=`confirmDelete(${contact.id})` title="Delete")
+                    i.fas.fa-trash-alt
+
+      // Pagination
+      if pagination && pagination.totalPages > 1
+        .pagination-container
+          nav(aria-label="Contacts pagination")
+            ul.pagination
+              // First page
+              li.page-item(class=pagination.page === 1 ? 'disabled' : '')
+                a.page-link(href=`/contacts${searchTerm ? '/search?term=' + searchTerm + '&' : '?'}page=1` aria-label="First")
+                  i.fas.fa-angle-double-left
+                
+              // Previous page
+              li.page-item(class=pagination.page === 1 ? 'disabled' : '')
+                a.page-link(href=`/contacts${searchTerm ? '/search?term=' + searchTerm + '&' : '?'}page=${pagination.page - 1}` aria-label="Previous")
+                  i.fas.fa-angle-left
+              
+              // Page numbers
+              - var startPage = Math.max(1, pagination.page - 2)
+              - var endPage = Math.min(pagination.totalPages, startPage + 4)
+              - if (endPage - startPage < 4 && startPage > 1) startPage = Math.max(1, endPage - 4)
+              
+              each p in Array(endPage - startPage + 1).fill().map((_, i) => startPage + i)
+                li.page-item(class=p === pagination.page ? 'active' : '')
+                  a.page-link(href=`/contacts${searchTerm ? '/search?term=' + searchTerm + '&' : '?'}page=${p}`)= p
+              
+              // Next page
+              li.page-item(class=pagination.page === pagination.totalPages ? 'disabled' : '')
+                a.page-link(href=`/contacts${searchTerm ? '/search?term=' + searchTerm + '&' : '?'}page=${pagination.page + 1}` aria-label="Next")
+                  i.fas.fa-angle-right
+              
+              // Last page
+              li.page-item(class=pagination.page === pagination.totalPages ? 'disabled' : '')
+                a.page-link(href=`/contacts${searchTerm ? '/search?term=' + searchTerm + '&' : '?'}page=${pagination.totalPages}` aria-label="Last")
+                  i.fas.fa-angle-double-right
+                  
+          // Page size selector
+          .page-size-selector
+            label.mr-2(for="pageSize") Show
+            select#pageSize.form-control.form-control-sm(onchange="changePageSize(this.value)")
+              option(value="50" selected=pagination.limit === 50) 50
+              option(value="100" selected=pagination.limit === 100) 100
+              option(value="200" selected=pagination.limit === 200) 200
+              option(value="500" selected=pagination.limit === 500) 500
+            label.ml-2 contacts per page
 
 block scripts
   script.
@@ -113,68 +196,148 @@ block scripts
         window.location.href = `/contacts/delete/${contactId}`;
       }
     }
-
+    
     function confirmDeleteSelected() {
-      const selected = Array.from(document.querySelectorAll('input[name="selectedContacts"]:checked'))
-        .map(checkbox => checkbox.value);
-      if (selected.length === 0) {
+      const checkboxes = document.querySelectorAll('input[name="selectedContacts"]');
+      const selectedCheckboxes = document.querySelectorAll('input[name="selectedContacts"]:checked');
+      
+      if (selectedCheckboxes.length === 0) {
         alert('Please select at least one contact to delete.');
         return;
       }
-      if (confirm(`Are you sure you want to delete ${selected.length} selected contacts?`)) {
+      
+      const isAllSelected = selectedCheckboxes.length === checkboxes.length;
+      const confirmMessage = isAllSelected 
+        ? `Are you sure you want to delete ALL ${selectedCheckboxes.length} contacts? This action cannot be undone.`
+        : `Are you sure you want to delete ${selectedCheckboxes.length} selected contacts?`;
+      
+      if (confirm(confirmMessage)) {
+        const ids = Array.from(selectedCheckboxes).map(cb => cb.value);
+        
+        // Show loading indicator
+        const deleteBtn = document.getElementById('deleteSelectedBtn');
+        const originalBtnHtml = deleteBtn.innerHTML;
+        deleteBtn.disabled = true;
+        deleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Deleting...';
+        
+        // Send AJAX request to delete selected contacts
         fetch('/contacts/delete-multiple', {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ ids: selected })
+          body: JSON.stringify({ ids }),
         })
         .then(response => response.json())
         .then(data => {
           if (data.success) {
-            window.location.reload();
+            window.location.reload(); // Reload the page to show updated list
           } else {
-            alert('Error deleting contacts');
+            alert('Error deleting contacts: ' + (data.message || 'Unknown error'));
+            deleteBtn.disabled = false;
+            deleteBtn.innerHTML = originalBtnHtml;
           }
         })
-        .catch(error => console.error('Error:', error));
+        .catch(error => {
+          console.error('Error:', error);
+          alert('Error deleting contacts');
+          deleteBtn.disabled = false;
+          deleteBtn.innerHTML = originalBtnHtml;
+        });
       }
     }
-
-    function validateAddContact() {
-      const phoneNumberInput = document.getElementById('addPhoneNumber');
-      const phoneNumberWarning = document.getElementById('addPhoneNumberWarning');
-      if (!phoneNumberInput.value) {
-        phoneNumberInput.classList.add('error');
-        phoneNumberWarning.style.display = 'block';
-        return false; // Prevent form submission
-      } else {
-        phoneNumberInput.classList.remove('error');
-        phoneNumberWarning.style.display = 'none';
-      }
-      return true; // Allow form submission
-    }
-
+    
     function toggleSelectAll() {
-      const selectAll = document.getElementById('selectAll');
+      const selectAllCheckbox = document.getElementById('selectAll');
       const checkboxes = document.querySelectorAll('input[name="selectedContacts"]');
-      checkboxes.forEach(checkbox => checkbox.checked = selectAll.checked);
+      
+      checkboxes.forEach(checkbox => {
+        checkbox.checked = selectAllCheckbox.checked;
+      });
+      
       updateSelectedCount();
     }
-
+    
     function updateSelectedCount() {
-      const selected = document.querySelectorAll('input[name="selectedContacts"]:checked').length;
-      document.getElementById('selectedCount').textContent = selected;
+      const checkboxes = document.querySelectorAll('input[name="selectedContacts"]');
+      const selectedCheckboxes = document.querySelectorAll('input[name="selectedContacts"]:checked');
+      const count = selectedCheckboxes.length;
+      document.getElementById('selectedCount').textContent = count;
+      
+      // Show/hide bulk actions bar
       const bulkActionsBar = document.getElementById('bulkActionsBar');
-      if (selected > 0) {
+      if (count > 0) {
         bulkActionsBar.classList.add('active');
+        
+        // Change button text based on whether all contacts are selected or not
+        const deleteBtn = document.getElementById('deleteSelectedBtn');
+        if (count === checkboxes.length && count > 0) {
+          deleteBtn.innerHTML = '<i class="fas fa-trash-alt mr-1"></i> Delete All';
+        } else {
+          deleteBtn.innerHTML = '<i class="fas fa-trash mr-1"></i> Delete Selected';
+        }
       } else {
         bulkActionsBar.classList.remove('active');
       }
     }
-
-    // Initialize file input display
-    document.getElementById('file').addEventListener('change', function(e) {
-      const fileName = e.target.files[0]?.name || 'Choose a file';
-      document.querySelector('.file-upload-label').textContent = fileName;
+    
+    function validateAddContact() {
+      const phoneNumberInput = document.getElementById('addPhoneNumber');
+      const phoneNumberWarning = document.getElementById('addPhoneNumberWarning');
+      
+      if (!phoneNumberInput.value.trim()) {
+        phoneNumberInput.classList.add('error');
+        phoneNumberWarning.style.display = 'block';
+        return false;
+      } else {
+        phoneNumberInput.classList.remove('error');
+        phoneNumberWarning.style.display = 'none';
+        return true;
+      }
+    }
+    
+    // Function to toggle source lists
+    function toggleVisibility(source) {
+      const contentDiv = document.getElementById(`list-${source}`);
+      if (contentDiv) {
+        contentDiv.style.display = contentDiv.style.display === 'none' ? 'block' : 'none';
+      }
+    }
+    
+    // Function to change page size
+    function changePageSize(size) {
+      // Get current URL
+      let url = new URL(window.location.href);
+      
+      // Update or add the limit parameter
+      url.searchParams.set('limit', size);
+      
+      // If there's a page parameter, reset to page 1
+      if (url.searchParams.has('page')) {
+        url.searchParams.set('page', 1);
+      }
+      
+      // Navigate to the new URL
+      window.location.href = url.toString();
+    }
+    
+    // Function to cancel all selections
+    function cancelSelection() {
+      // Uncheck the "Select All" checkbox
+      const selectAllCheckbox = document.getElementById('selectAll');
+      selectAllCheckbox.checked = false;
+      
+      // Uncheck all individual checkboxes
+      const checkboxes = document.querySelectorAll('input[name="selectedContacts"]');
+      checkboxes.forEach(checkbox => {
+        checkbox.checked = false;
+      });
+      
+      // Update the count and hide the bulk actions bar
+      updateSelectedCount();
+    }
+    
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+      updateSelectedCount();
     }); 

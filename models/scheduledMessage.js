@@ -27,6 +27,24 @@ module.exports = (sequelize, DataTypes) => {
     sentTime: {
       type: DataTypes.DATE,
       allowNull: true
+    },
+    interval: {
+      type: DataTypes.INTEGER,
+      defaultValue: 45000, // Default 45 seconds in milliseconds
+      allowNull: false
+    },
+    retryCount: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+      allowNull: false
+    },
+    lastError: {
+      type: DataTypes.TEXT,
+      allowNull: true
+    },
+    batchId: {
+      type: DataTypes.STRING,
+      allowNull: true
     }
   }, {
     timestamps: true // Automatically adds createdAt and updatedAt fields

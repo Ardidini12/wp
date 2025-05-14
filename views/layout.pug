@@ -27,9 +27,18 @@ html
           a.nav-item(href='/bulkSender' class=currentPage === 'bulk-sender' ? 'active' : '')
             i.fas.fa-paper-plane.nav-icon
             span.nav-text Bulk Sender
+          a.nav-item(href='/sales' class=currentPage === 'sales' ? 'active' : '')
+            i.fas.fa-chart-line.nav-icon
+            span.nav-text Sales Data
+          a.nav-item(href='/sales-sender' class=currentPage === 'sales-sender' ? 'active' : '')
+            i.fas.fa-shopping-cart.nav-icon
+            span.nav-text Sales Sender
           a.nav-item(href='/whatsapp-check' class=currentPage === 'whatsapp' ? 'active' : '')
             i.fab.fa-whatsapp.nav-icon
             span.nav-text WhatsApp Status
+          a.nav-item(href='/settings/working-hours' class=currentPage === 'settings' ? 'active' : '')
+            i.fas.fa-clock.nav-icon
+            span.nav-text Working Hours
         
         .sidebar-footer
           span.app-version v1.0.0

@@ -3,6 +3,52 @@ extends layout
 block styles
   link(rel='stylesheet', href='/stylesheets/bulkSender.css')
   link(rel='stylesheet', href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css')
+  style.
+    .interval-selection {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    
+    #interval-type {
+      width: 200px;
+    }
+    
+    .custom-interval .input-group {
+      max-width: 300px;
+    }
+    
+    .invalid-feedback {
+      display: none;
+      color: #dc3545;
+      font-size: 0.875em;
+      margin-top: 4px;
+    }
+    
+    .input-group-text {
+      background-color: #f8f9fa;
+      border-left: none;
+    }
+    
+    input:invalid + .input-group-append .input-group-text {
+      border-color: #dc3545;
+    }
+    
+    input.is-invalid {
+      border-color: #dc3545;
+    }
+    
+    input.is-invalid + .input-group-append .input-group-text {
+      border-color: #dc3545;
+    }
+    
+    input.is-valid {
+      border-color: #28a745;
+    }
+    
+    input.is-valid + .input-group-append .input-group-text {
+      border-color: #28a745;
+    }
 
 block content
   .page-header
@@ -14,23 +60,35 @@ block content
         span#selectedCount (0)
 
   .sender-container
-    form(action="/bulk-sender/send" method="post")
+    form(action="/bulk-sender/send" method="post" onsubmit="return validateForm()")
+      input(type="hidden" name="selectedContactsCount" id="selectedContactsCount" value="0")
       .contacts-section
         h3 Select Contacts
         if Object.keys(contactsBySource).length
           each contacts, source in contactsBySource
             .source-item
-              .source-header(onclick=`toggleVisibility('${source}')`)
+              .source-header(onclick=`toggleVisibility('${source.replace(/'/g, "\\'")}')`)
                 .source-name= source
                 button.btn.btn-sm.btn-outline-primary(type="button") Toggle List
-              .source-content(id=`list-${source}` style="display:none;")
+              .source-content(id=`list-${source.replace(/[^a-zA-Z0-9]/g, "_")}` style="display:none;")
                 .select-all-control
-                  input(type="checkbox" id=`selectAll-${source}` onchange=`toggleSelectAll('${source}')`)
-                  label.ml-1(for=`selectAll-${source}`) Select All
-                ul.contacts-list
+                  input(type="checkbox" id=`selectAll-${source.replace(/[^a-zA-Z0-9]/g, "_")}` data-source=source onchange=`toggleSelectAll('${source.replace(/'/g, "\\'")}')`)
+                  label.ml-1(for=`selectAll-${source.replace(/[^a-zA-Z0-9]/g, "_")}`) Select All
+                  
+                .pagination-controls(id=`pagination-${source.replace(/[^a-zA-Z0-9]/g, "_")}`)
+                  button.btn.btn-sm.btn-outline-secondary.mr-1(type="button" onclick=`prevPage('${source.replace(/'/g, "\\'")}')`) 
+                    i.fas.fa-chevron-left
+                  span.page-info
+                    span.current-page(id=`currentPage-${source.replace(/[^a-zA-Z0-9]/g, "_")}`) 1
+                    | /
+                    span.total-pages(id=`totalPages-${source.replace(/[^a-zA-Z0-9]/g, "_")}`) 1
+                  button.btn.btn-sm.btn-outline-secondary.ml-1(type="button" onclick=`nextPage('${source.replace(/'/g, "\\'")}')`)
+                    i.fas.fa-chevron-right
+
+                ul.contacts-list(id=`contacts-${source.replace(/[^a-zA-Z0-9]/g, "_")}`)
                   each contact in contacts
                     li.contact-item
-                      input.contact-checkbox(type="checkbox" name=source value=contact.id onchange="updateSelectedCount()")
+                      input.contact-checkbox(type="checkbox" name=`source_${source.replace(/[^a-zA-Z0-9]/g, "_")}` data-source-id=`${source.replace(/[^a-zA-Z0-9]/g, "_")}` value=contact.id onchange="updateSelectedCount()")
                       span= `${contact.name || 'N/A'} ${contact.surname || ''} (${contact.phoneNumber || 'N/A'})`
         else
           .alert.alert-warning
@@ -45,16 +103,45 @@ block content
             select.form-control#template-select(name="template" required)
               option(value="") -- Select a template --
               each template in templates
-                option(value=template.id)= `${template.templateName}`
-                  span.text-muted  - #{template.templateContent.substring(0, 30)}...
+                option(value=template.id)= template.templateName
+                  span.text-muted= ` - ${template.templateContent.substring(0, 30)}...`
           else
             .alert.alert-warning
               i.fas.fa-exclamation-triangle.mr-1
               | No templates available. Please add a template first.
 
+        .form-group
+          label(for="interval-type") Message Interval:
+          .interval-selection
+            select.form-control#interval-type(onchange="toggleIntervalInput()")
+              option(value="preset") Preset Intervals
+              option(value="custom") Custom Interval
+            
+            .preset-intervals#preset-intervals
+              select.form-control#interval-select(name="interval")
+                option(value="15") 15 seconds
+                option(value="30") 30 seconds
+                option(value="45" selected) 45 seconds
+                option(value="60") 1 minute
+                option(value="120") 2 minutes
+                option(value="300") 5 minutes
+            
+            .custom-interval#custom-interval(style="display: none;")
+              .input-group
+                input.form-control#custom-interval-input(
+                  type="number" 
+                  name="interval" 
+                  min="15" 
+                  placeholder="Enter seconds (min: 15)"
+                  oninput="validateCustomInterval(this)"
+                )
+                .input-group-append
+                  span.input-group-text seconds
+              .invalid-feedback#interval-error Please enter at least 15 seconds
+
         .alert.alert-info.mt-3
           i.fas.fa-info-circle.mr-1
-          | Messages will be sent with a 45-second interval between each contact.
+          | Messages will be sent with the selected interval between each contact.
 
         button.btn.btn-primary.mt-3(type="submit")
           i.fas.fa-paper-plane.mr-1
@@ -74,7 +161,7 @@ block content
               .contact-info
                 span.phone= message.phoneNumber
                 if message.contactName || message.contactSurname
-                  span.name= ` (${message.contactName || ''} ${message.contactSurname || ''})`
+                  span.name= ` (${message.contactName || ''} ${message.contactSurname || ''})` 
               .message-details
                 .message-content= message.message
                 .status-box
@@ -91,10 +178,178 @@ block content
 
 block scripts
   script.
-    // Toggle message list visibility
+    var PAGE_SIZE = 50;
+    var sourceData = {};
+
+    function initializePagination() {
+      var items = document.getElementsByClassName('source-item');
+      Array.prototype.forEach.call(items, function(sourceItem) {
+        var sourceHeader = sourceItem.querySelector('.source-header');
+        var onclickAttr = sourceHeader.getAttribute('onclick');
+        var sourceMatch = onclickAttr.match(/toggleVisibility\('([^']+)'\)/);
+        
+        if (!sourceMatch) return;
+        
+        var source = sourceMatch[1];
+        var safeSourceId = source.replace(/[^a-zA-Z0-9]/g, "_");
+        var contactItems = Array.prototype.slice.call(sourceItem.querySelectorAll('.contact-item'));
+        
+        sourceData[source] = {
+          contacts: contactItems,
+          currentPage: 1,
+          totalPages: Math.ceil(contactItems.length / PAGE_SIZE)
+        };
+        
+        var totalPagesEl = document.getElementById('totalPages-' + safeSourceId);
+        if (totalPagesEl) {
+          totalPagesEl.textContent = sourceData[source].totalPages;
+        }
+        
+        contactItems.forEach(function(item) {
+          item.style.display = 'none';
+        });
+        
+        showPage(source, 1);
+      });
+    }
+
+    function showPage(source, pageNum) {
+      if (!sourceData[source]) return;
+      
+      var data = sourceData[source];
+      var safeSourceId = source.replace(/[^a-zA-Z0-9]/g, "_");
+      var contactsList = document.getElementById('contacts-' + safeSourceId);
+      if (!contactsList) return;
+      
+      var page = Math.max(1, Math.min(pageNum, data.totalPages));
+      data.currentPage = page;
+      
+      var currentPageEl = document.getElementById('currentPage-' + safeSourceId);
+      if (currentPageEl) {
+        currentPageEl.textContent = page;
+      }
+      
+      var startIdx = (page - 1) * PAGE_SIZE;
+      var endIdx = Math.min(startIdx + PAGE_SIZE, data.contacts.length);
+      
+      data.contacts.forEach(function(item) {
+        item.style.display = 'none';
+      });
+      
+      data.contacts.slice(startIdx, endIdx).forEach(function(item) {
+        if (item) {
+          item.style.display = '';
+        }
+      });
+    }
+
+    function toggleVisibility(source) {
+      var safeSourceId = source.replace(/[^a-zA-Z0-9]/g, "_");
+      var list = document.getElementById('list-' + safeSourceId);
+      if (list) {
+        list.style.display = list.style.display === 'none' ? 'block' : 'none';
+      }
+    }
+
+    function toggleSelectAll(source) {
+      var safeSourceId = source.replace(/[^a-zA-Z0-9]/g, "_");
+      var selectAllCheckbox = document.getElementById('selectAll-' + safeSourceId);
+      var checkboxes = document.querySelectorAll('input[data-source-id="' + safeSourceId + '"]');
+      
+      Array.prototype.forEach.call(checkboxes, function(checkbox) {
+        checkbox.checked = selectAllCheckbox.checked;
+      });
+      
+      updateSelectedCount();
+    }
+
+    function updateSelectedCount() {
+      var selectedCount = document.querySelectorAll('.contact-checkbox:checked').length;
+      document.getElementById('selectedCount').textContent = '(' + selectedCount + ')';
+      document.getElementById('selectedContactsCount').value = selectedCount;
+      document.getElementById('toggleSelectedBtn').disabled = selectedCount === 0;
+    }
+
+    function nextPage(source) {
+      if (sourceData[source]) {
+        var newPage = sourceData[source].currentPage + 1;
+        showPage(source, newPage);
+      }
+    }
+
+    function prevPage(source) {
+      if (sourceData[source]) {
+        var newPage = sourceData[source].currentPage - 1;
+        showPage(source, newPage);
+      }
+    }
+
+    function toggleIntervalInput() {
+      var intervalType = document.getElementById('interval-type').value;
+      var presetIntervals = document.getElementById('preset-intervals');
+      var customInterval = document.getElementById('custom-interval');
+      var intervalSelect = document.getElementById('interval-select');
+      var customInput = document.getElementById('custom-interval-input');
+      
+      if (intervalType === 'preset') {
+        presetIntervals.style.display = 'block';
+        customInterval.style.display = 'none';
+        intervalSelect.name = 'interval';
+        customInput.name = '';
+      } else {
+        presetIntervals.style.display = 'none';
+        customInterval.style.display = 'block';
+        intervalSelect.name = '';
+        customInput.name = 'interval';
+      }
+    }
+
+    function validateCustomInterval(input) {
+      var errorDiv = document.getElementById('interval-error');
+      var value = parseInt(input.value);
+      
+      if (isNaN(value) || value < 15) {
+        input.classList.add('is-invalid');
+        input.classList.remove('is-valid');
+        errorDiv.style.display = 'block';
+        errorDiv.textContent = 'Please enter at least 15 seconds';
+        return false;
+      }
+      
+      input.classList.remove('is-invalid');
+      input.classList.add('is-valid');
+      errorDiv.style.display = 'none';
+      return true;
+    }
+
+    function validateForm() {
+      var intervalType = document.getElementById('interval-type').value;
+      
+      if (intervalType === 'custom') {
+        var customInput = document.getElementById('custom-interval-input');
+        if (!validateCustomInterval(customInput)) {
+          return false;
+        }
+      }
+      
+      var selectedCount = parseInt(document.getElementById('selectedContactsCount').value);
+      if (selectedCount === 0) {
+        alert('Please select at least one contact');
+        return false;
+      }
+      
+      var templateSelect = document.getElementById('template-select');
+      if (!templateSelect.value) {
+        alert('Please select a template');
+        return false;
+      }
+      
+      return true;
+    }
+
     function toggleMessageList() {
-      const list = document.getElementById('messageList');
-      const button = document.getElementById('toggleMessages');
+      var list = document.getElementById('messageList');
+      var button = document.getElementById('toggleMessages');
       if (list.style.display === 'none') {
         list.style.display = 'block';
         button.innerHTML = '<i class="fas fa-times mr-1"></i> Hide Messages';
@@ -104,84 +359,8 @@ block scripts
       }
     }
 
-    // Update countdowns
-    function updateCountdowns() {
-      document.querySelectorAll('.countdown').forEach(element => {
-        const scheduledTime = new Date(element.dataset.scheduledTime).getTime();
-        const now = Date.now();
-        const diff = scheduledTime - now;
-
-        if (diff <= 0) {
-          element.textContent = 'Ready to send';
-        } else {
-          const minutes = Math.floor(diff / 60000);
-          const seconds = Math.floor((diff % 60000) / 1000);
-          element.textContent = `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
-        }
-      });
-    }
-
-    // Toggle source list visibility
-    function toggleVisibility(source) {
-      const list = document.getElementById(`list-${source}`);
-      list.style.display = list.style.display === 'none' ? 'block' : 'none';
-    }
-
-    // Toggle select all
-    function toggleSelectAll(source) {
-      const checkboxes = document.querySelectorAll(`input[name="${source}"]`);
-      const selectAll = document.getElementById(`selectAll-${source}`);
-      checkboxes.forEach(checkbox => checkbox.checked = selectAll.checked);
+    document.addEventListener('DOMContentLoaded', function() {
+      initializePagination();
       updateSelectedCount();
-    }
+    });
 
-    // Update selected count
-    function updateSelectedCount() {
-      const selectedCount = document.querySelectorAll('input[type="checkbox"][name]:checked:not([id^="selectAll"])').length;
-      document.getElementById('selectedCount').textContent = `(${selectedCount})`;
-      document.getElementById('toggleSelectedBtn').disabled = selectedCount === 0;
-    }
-
-    // Initial setup
-    setInterval(updateCountdowns, 1000);
-    updateCountdowns();
-    
-    // Auto-refresh messages every 5 seconds
-    setInterval(async () => {
-      try {
-        const response = await fetch('/bulk-sender/messages');
-        const messages = await response.json();
-        
-        const container = document.querySelector('.message-queue');
-        if (container) {
-          container.innerHTML = messages.map(message => `
-            <div class="message-item" data-id="${message.id}">
-              <div class="contact-info">
-                <span class="phone">${message.phoneNumber}</span>
-                ${(message.contactName || message.contactSurname) ? 
-                  `<span class="name"> (${message.contactName || ''} ${message.contactSurname || ''})</span>` : ''}
-              </div>
-              <div class="message-details">
-                <div class="message-content">${message.message}</div>
-                <div class="status-box">
-                  <span class="status-label">Status:</span>
-                  <span class="status-${message.status}">${message.status}</span>
-                  ${message.status === 'pending' ? `
-                    <div class="countdown-container">
-                      <span class="countdown-label">Scheduled for:</span>
-                      <div class="countdown" data-scheduled-time="${message.scheduledTime}"></div>
-                    </div>` : ''}
-                  ${message.sentTime ? `
-                    <div class="sent-time">Sent at: ${new Date(message.sentTime).toLocaleString()}</div>
-                  ` : ''}
-                </div>
-              </div>
-            </div>
-          `).join('');
-          
-          updateCountdowns();
-        }
-      } catch (error) {
-        console.error('Error fetching messages:', error);
-      }
-    }, 5000);
